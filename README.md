@@ -12,4 +12,4 @@ In the current digital landscape, users often have to link external articles or 
 |-----|-----|-----------|
 | Ishaan Gupta | Frontend | guptaishaan@ufl.edu |
 | Ritik Raj | Backend | ritikraj.lnu@ufl.edu |
-| Vittal Chintamaneni | Backend |  |
+| Vittal Chintamaneni | Backend |  chintamaneni.v@ufl.edu |
