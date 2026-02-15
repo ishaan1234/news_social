@@ -1,0 +1,57 @@
+give me the project structure to make a social app that summarizes articles related to a news headline in one location using Go and Angular/React
+
+
+backend/
+├── cmd/
+│   └── api/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── server/
+│   │   └── http.go
+│   ├── middleware/
+│   │   ├── auth.go
+│   │   ├── logging.go
+│   │   └── rate_limit.go
+│   ├── modules/
+│   │   ├── auth/
+│   │   │   ├── handler.go
+│   │   │   ├── service.go
+│   │   │   └── repository.go
+│   │   ├── headlines/
+│   │   │   ├── handler.go
+│   │   │   ├── service.go
+│   │   │   └── repository.go
+│   │   ├── articles/
+│   │   │   ├── handler.go
+│   │   │   ├── service.go
+│   │   │   └── repository.go
+│   │   ├── summaries/
+│   │   │   ├── handler.go
+│   │   │   ├── service.go
+│   │   │   └── ai_client.go
+│   │   ├── social/
+│   │   │   ├── handler.go
+│   │   │   ├── service.go
+│   │   │   └── repository.go
+│   ├── models/
+│   │   ├── user.go
+│   │   ├── headline.go
+│   │   ├── article.go
+│   │   ├── summary.go
+│   │   └── comment.go
+│   ├── db/
+│   │   ├── postgres.go
+│   │   └── migrations/
+│   └── utils/
+│       ├── http_response.go
+│       └── errors.go
+├── pkg/
+│   └── clients/
+│       ├── newsapi/
+│       │   └── client.go
+│       └── ai/
+│           └── openai.go
+├── go.mod
+└── go.sum
