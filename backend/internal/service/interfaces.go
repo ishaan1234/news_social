@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
+
 	"github.com/google/uuid"
-	"socialnews/internal/models"
+	"github.com/ishaan1234/news_social/backend/internal/models"
 )
 
 type AuthService interface {
