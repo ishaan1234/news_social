@@ -25,3 +25,7 @@ pnpm-debug.log*
 
 # Go
 backend/tmp/
+
+# backend/.env
+NEWSAPI_KEY=1c5e2d0d86744821aaa4bb4cc04c64c8
+
