@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Go
 backend/tmp/
+
+# backend/.env
+backend/.env
