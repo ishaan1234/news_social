@@ -7,6 +7,7 @@ export interface NewsCardProps {
   source: string;
   timeAgo: string;
   articleUrl: string;
+  imageUrl?: string;
 }
 
 const categoryColors: Record<string, string> = {
@@ -26,15 +27,19 @@ const NewsCard: React.FC<NewsCardProps> = ({
   source,
   timeAgo,
   articleUrl,
+  imageUrl,
 }) => {
   const badge = categoryColors[category] || 'bg-gray-100 text-gray-700';
 
   return (
     <div className="h-full w-full flex flex-col">
-      {/* Top half — Placeholder graphic */}
-      <div className="relative h-1/2 w-full flex-shrink-0 bg-gray-200 flex items-center justify-center">
-        {/* Simple doughnut / ring shape */}
-        <div className="w-32 h-32 rounded-full border-[16px] border-gray-400 bg-gray-200" />
+      {/* Top half — Image or placeholder */}
+      <div className="relative h-1/2 w-full flex-shrink-0 bg-gray-200 flex items-center justify-center overflow-hidden">
+        {imageUrl ? (
+          <img src={imageUrl} alt={headline} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-32 h-32 rounded-full border-[16px] border-gray-400 bg-gray-200" />
+        )}
         <span
           className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1 rounded-full ${badge}`}
         >
