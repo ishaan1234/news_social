@@ -10,6 +10,7 @@ const placeholderNews: NewsCardProps[] = [
     source: 'Tech Daily',
     timeAgo: '2h ago',
     articleUrl: 'https://example.com',
+    imageUrl: 'https://picsum.photos/seed/news1/800/600',
   },
   {
     headline: 'Headline placeholder',
