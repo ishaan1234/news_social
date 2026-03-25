@@ -28,3 +28,16 @@ backend/tmp/
 
 # backend/.env
 backend/.env
+
+# Go build cache
+backend/.gocache/
+.gocache/
+
+# Go test binary / built binary
+backend/api
+
+# Backup files
+*.bak
+
+# macOS junk
+.DS_Store
