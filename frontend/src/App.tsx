@@ -1,24 +1,79 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect, useState } from 'react';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Chat from './pages/Chat';
+import PlaceholderPage from './pages/PlaceholderPage';
+
+export type AppRoute = '/' | '/posts' | '/chat' | '/profile' | '/settings';
+
+const validRoutes: AppRoute[] = ['/', '/posts', '/chat', '/profile', '/settings'];
+const validRouteSet = new Set<AppRoute>(validRoutes);
+
+const getCurrentRoute = (): AppRoute => {
+  if (typeof window === 'undefined') {
+    return '/';
+  }
+
+  const candidate = window.location.hash
+    ? window.location.hash.replace(/^#/, '') || '/'
+    : window.location.pathname || '/';
+
+  return validRouteSet.has(candidate as AppRoute) ? (candidate as AppRoute) : '/';
+};
+
+const renderRoute = (route: AppRoute) => {
+  switch (route) {
+    case '/chat':
+      return <Chat />;
+    case '/posts':
+      return (
+        <PlaceholderPage
+          title="Posts are not wired up yet."
+          description="The navigation shell now supports multiple frontend views, but this pass only implements the chat experience."
+        />
+      );
+    case '/profile':
+      return (
+        <PlaceholderPage
+          title="Profile is still a placeholder."
+          description="Chat is available now. Profile data and editing can plug into the same frontend routing pattern later."
+        />
+      );
+    case '/settings':
+      return (
+        <PlaceholderPage
+          title="Settings are still pending."
+          description="This screen is intentionally static for now so the frontend can focus on the new chat flow."
+        />
+      );
+    case '/':
+    default:
+      return <Home />;
+  }
+};
 
 function App() {
+  const [currentRoute, setCurrentRoute] = useState<AppRoute>(getCurrentRoute);
+
+  useEffect(() => {
+    const syncRoute = () => {
+      setCurrentRoute(getCurrentRoute());
+    };
+
+    syncRoute();
+    window.addEventListener('hashchange', syncRoute);
+    window.addEventListener('popstate', syncRoute);
+
+    return () => {
+      window.removeEventListener('hashchange', syncRoute);
+      window.removeEventListener('popstate', syncRoute);
+    };
+  }, []);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className="min-h-screen bg-gray-100">
+      <Navbar currentPath={currentRoute} />
+      {renderRoute(currentRoute)}
     </div>
   );
 }
