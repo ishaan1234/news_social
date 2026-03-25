@@ -133,11 +133,13 @@ const Home: React.FC = () => {
   return (
     <div
       ref={containerRef}
+      data-cy="home-feed"
       className="relative w-full overflow-hidden"
       style={{ height: 'calc(100vh - 56px)' }}
     >
       {/* Sliding container */}
       <div
+        data-cy="news-track"
         className="h-full transition-transform duration-500 ease-in-out"
         style={{ transform: `translateY(-${current * 100}%)` }}
       >
@@ -153,6 +155,8 @@ const Home: React.FC = () => {
         <button
           onClick={goPrev}
           disabled={current === 0}
+          aria-label="Previous article"
+          data-cy="news-prev"
           className="p-2 bg-white/80 backdrop-blur rounded-full shadow hover:bg-white disabled:opacity-30 transition"
         >
           <ChevronUpIcon className="w-5 h-5 text-gray-700" />
@@ -160,6 +164,8 @@ const Home: React.FC = () => {
         <button
           onClick={goNext}
           disabled={current === total - 1}
+          aria-label="Next article"
+          data-cy="news-next"
           className="p-2 bg-white/80 backdrop-blur rounded-full shadow hover:bg-white disabled:opacity-30 transition"
         >
           <ChevronDownIcon className="w-5 h-5 text-gray-700" />
@@ -172,6 +178,8 @@ const Home: React.FC = () => {
           <button
             key={i}
             onClick={() => goTo(i)}
+            aria-label={`Go to article ${i + 1}`}
+            data-cy={`news-dot-${i}`}
             className={`w-2 h-2 rounded-full transition-all ${i === current ? 'bg-blue-600 scale-125' : 'bg-gray-300'
               }`}
           />

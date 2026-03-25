@@ -7,14 +7,18 @@ import {
 } from '@heroicons/react/24/outline';
 
 const navLinks = [
-  { name: 'News', path: '/' },
-  { name: 'Posts', path: '/posts' },
-  { name: 'Chat', path: '/chat' },
-  { name: 'Profile', path: '/profile' },
-  { name: 'Settings', path: '/settings' },
+  { name: 'News', path: '/', href: '#/' },
+  { name: 'Posts', path: '/posts', href: '#/posts' },
+  { name: 'Chat', path: '/chat', href: '#/chat' },
+  { name: 'Profile', path: '/profile', href: '#/profile' },
+  { name: 'Settings', path: '/settings', href: '#/settings' },
 ];
 
-const Navbar: React.FC = () => {
+interface NavbarProps {
+  currentPath: string;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ currentPath }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -24,7 +28,7 @@ const Navbar: React.FC = () => {
 
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <a href="/" className="flex items-center gap-2">
+            <a href="#/" className="flex items-center gap-2">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">N</span>
               </div>
@@ -36,18 +40,24 @@ const Navbar: React.FC = () => {
 
           {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-6">
-            {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.path}
-                className={`text-sm ${link.name === 'News'
-                  ? 'text-blue-600 font-medium'
-                  : 'text-gray-500 hover:text-gray-900'
-                  }`}
-              >
-                {link.name}
-              </a>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = link.path === currentPath;
+
+              return (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  data-cy={`nav-${link.name.toLowerCase()}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`text-sm transition-colors ${isActive
+                    ? 'text-blue-600 font-medium'
+                    : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                >
+                  {link.name}
+                </a>
+              );
+            })}
           </div>
 
           {/* Right Actions */}
@@ -85,19 +95,24 @@ const Navbar: React.FC = () => {
 
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-2">
-          {navLinks.map((link) => (
-            <a
-              key={link.name}
-              href={link.path}
-              className={`block text-sm py-1.5 ${link.name === 'News'
-                ? 'text-blue-600 font-medium'
-                : 'text-gray-500 hover:text-gray-900'
-                }`}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              {link.name}
-            </a>
-          ))}
+          {navLinks.map((link) => {
+            const isActive = link.path === currentPath;
+
+            return (
+              <a
+                key={link.name}
+                href={link.href}
+                data-cy={`nav-${link.name.toLowerCase()}`}
+                className={`block text-sm py-1.5 ${isActive
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {link.name}
+              </a>
+            );
+          })}
         </div>
       )}
     </nav>
