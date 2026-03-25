@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS headlines (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
