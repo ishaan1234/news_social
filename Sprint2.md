@@ -16,11 +16,11 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
   - schemas  implemented
   - Migration feature added
 - **Incorporating chat feature**
-- - Extended the news fetching pipeline built in Sprint 1.
+- Extended the news fetching pipeline built in Sprint 1.
 - Implemented server-side web scraping to extract full article content from URLs using readability parsing.
 - Added preprocessing to clean raw HTML content into structured, readable text.
 - Integrated Groq LLM API to generate concise summaries from scraped content.
-- Enforced a strict summary length constraint (≤ 50 words).
+- Enforced a summary length constraint (40 to 60 words).
 - Designed pipeline flow: Fetch → Scrape → Clean → Summarize → Respond.
 - Secured all API keys (NewsAPI, Groq) using environment variables.
 - Enhanced `/news` endpoint to return enriched article data with summaries.
@@ -68,7 +68,6 @@ Added unit tests for:
 ---
 
 ## 6. Documentation for backend API
-  - ## 6. Documentation for Backend API
 
 ### Endpoint: `GET /news`
 
