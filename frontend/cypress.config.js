@@ -1,6 +1,7 @@
 process.env.BABEL_ENV = 'development';
 process.env.NODE_ENV = 'development';
 
+const { execFileSync } = require('child_process');
 const path = require('path');
 const { defineConfig } = require('cypress');
 const { devServer } = require('@cypress/webpack-dev-server');
@@ -12,9 +13,41 @@ const craWebpackConfig = require(
   path.join(reactScriptsRoot, 'config', 'webpack.config.js')
 );
 const cypressDir = path.resolve(__dirname, 'cypress');
+const componentCssInput = path.resolve(__dirname, 'src', 'index.css');
+const componentCssOutput = path.resolve(
+  __dirname,
+  'cypress',
+  'support',
+  'component.css'
+);
+const tailwindCli = require.resolve('tailwindcss/lib/cli.js', {
+  paths: [__dirname],
+});
 
 const webpackConfig = craWebpackConfig('development');
 const oneOfRule = webpackConfig.module.rules.find((rule) => Array.isArray(rule.oneOf));
+
+const buildComponentStyles = () => {
+  try {
+    execFileSync(
+      process.execPath,
+      [tailwindCli, '-i', componentCssInput, '-o', componentCssOutput],
+      {
+        cwd: __dirname,
+        env: {
+          ...process.env,
+          NODE_ENV: 'development',
+        },
+        stdio: 'pipe',
+      }
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown Tailwind build failure.';
+
+    throw new Error(`Failed to build Cypress component styles. ${message}`);
+  }
+};
 
 if (oneOfRule) {
   oneOfRule.oneOf.forEach((rule) => {
@@ -45,6 +78,8 @@ module.exports = defineConfig({
     supportFile: 'cypress/support/component.js',
     indexHtmlFile: 'cypress/support/component-index.html',
     devServer(devServerConfig) {
+      buildComponentStyles();
+
       return devServer({
         ...devServerConfig,
         framework: 'react',

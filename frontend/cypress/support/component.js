@@ -1,5 +1,5 @@
+import './component.css';
 import { mount } from 'cypress/react';
-import '../../src/index.css';
 
 Cypress.Commands.add('mount', mount);
 

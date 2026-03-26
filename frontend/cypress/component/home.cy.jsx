@@ -70,7 +70,7 @@ describe('Home page', () => {
       {
         navId: 'nav-posts',
         expectedHash: '#/posts',
-        expectedText: 'Post your take on the news',
+        expectedText: 'Share an opinion',
       },
       {
         navId: 'nav-chat',
