@@ -47,10 +47,13 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
 - **Integrating the Database into the workflow**
   - **Why:** as the schema and migrations are implemented, the current focus is on Article aggregation using the API and LLM after which we will introduce the persistence.
   - **Next step:** Database integration will be incorporated in t to enable caching, and social features.
-
-- **??**
-  - **Why:** ??
-  - **Next step:** ??
+- **Backend for Social Features (Posts, Likes, Comments, Sharing)**
+  - **Why:** While the frontend for social interactions is fully implemented with placeholders and local storage, there is no backend support yet due to pending database integration.
+  - **Next step:** Develop backend APIs for posts, likes, comments, and sharing functionality, and connect them to the database for persistent storage and real-time updates.
+- **Authentication and user profile**
+  - **Why:** Priority this sprint was given to core functionality (news pipeline, LLM summaries, and UI scaffolding). Authentication and user profile features require proper backend            integration and database usage, which are planned after DB workflow integration.
+  - **Next step:** Implement user authentication (login/signup, session/token management) and user profile management, followed by linking user-specific data such as posts, chats, and preferences to the database.
+  -   
 
 ---
 
