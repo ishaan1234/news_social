@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Chat from './pages/Chat';
+import Posts from './pages/Posts';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 export type AppRoute = '/' | '/posts' | '/chat' | '/profile' | '/settings';
@@ -26,12 +27,7 @@ const renderRoute = (route: AppRoute) => {
     case '/chat':
       return <Chat />;
     case '/posts':
-      return (
-        <PlaceholderPage
-          title="Posts are not wired up yet."
-          description="The navigation shell now supports multiple frontend views, but this pass only implements the chat experience."
-        />
-      );
+      return <Posts />;
     case '/profile':
       return (
         <PlaceholderPage

@@ -2,6 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NewsCard, { NewsCardProps } from '../components/NewsCard';
 import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
+interface BackendArticle {
+  source?: {
+    name?: string;
+  };
+  title?: string;
+  description?: string;
+  url?: string;
+  urlToImage?: string;
+  publishedAt?: string;
+  summary?: string;
+}
+
+interface BackendNewsResponse {
+  articles?: BackendArticle[];
+}
+
 const placeholderNews: NewsCardProps[] = [
   {
     headline: 'Headline placeholder',
@@ -54,11 +70,99 @@ const placeholderNews: NewsCardProps[] = [
   },
 ];
 
+const backendQuery = 'tesla';
+const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
+
+const formatTimeAgo = (publishedAt?: string) => {
+  if (!publishedAt) {
+    return 'Recently';
+  }
+
+  const publishedMs = new Date(publishedAt).getTime();
+  if (Number.isNaN(publishedMs)) {
+    return 'Recently';
+  }
+
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - publishedMs) / 60000));
+
+  if (diffMinutes < 1) {
+    return 'Just now';
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+};
+
+const mapBackendArticle = (article: BackendArticle): NewsCardProps => {
+  return {
+    headline: article.title?.trim() || 'Untitled article',
+    summary:
+      article.summary?.trim() ||
+      article.description?.trim() ||
+      'Summary unavailable.',
+    category: 'News',
+    source: article.source?.name?.trim() || 'Unknown source',
+    timeAgo: formatTimeAgo(article.publishedAt),
+    articleUrl: article.url?.trim() || 'https://example.com',
+    imageUrl: article.urlToImage?.trim() || undefined,
+  };
+};
+
 const Home: React.FC = () => {
+  const [articles, setArticles] = useState<NewsCardProps[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [current, setCurrent] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
-  const total = placeholderNews.length;
+  const newsItems = articles.length > 0 ? articles : placeholderNews;
+  const total = newsItems.length;
+
+  const loadNews = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true);
+    setLoadError('');
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/news?q=${encodeURIComponent(backendQuery)}`,
+        { signal }
+      );
+
+      if (!response.ok) {
+        throw new Error(`request failed with status ${response.status}`);
+      }
+
+      const data = (await response.json()) as BackendNewsResponse;
+      const nextArticles = (data.articles || []).map(mapBackendArticle);
+
+      if (nextArticles.length === 0) {
+        throw new Error('no articles returned');
+      }
+
+      setArticles(nextArticles);
+      setCurrent(0);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+
+      setArticles([]);
+      setLoadError('Unable to load live news. Showing placeholder stories instead.');
+    } finally {
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
 
   const goTo = useCallback(
     (index: number) => {
@@ -74,6 +178,19 @@ const Home: React.FC = () => {
 
   const goNext = useCallback(() => goTo(current + 1), [current, goTo]);
   const goPrev = useCallback(() => goTo(current - 1), [current, goTo]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadNews(controller.signal);
+
+    return () => controller.abort();
+  }, [loadNews]);
+
+  useEffect(() => {
+    setCurrent((previousCurrent) =>
+      Math.min(previousCurrent, Math.max(newsItems.length - 1, 0))
+    );
+  }, [newsItems.length]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -137,13 +254,32 @@ const Home: React.FC = () => {
       className="relative w-full overflow-hidden"
       style={{ height: 'calc(100vh - 56px)' }}
     >
+      {isLoading && (
+        <div className="absolute left-4 top-4 z-20 rounded-2xl bg-slate-900/80 px-4 py-2 text-sm font-medium text-white">
+          Loading live news...
+        </div>
+      )}
+
+      {!isLoading && loadError && (
+        <div className="absolute left-4 top-4 z-20 flex max-w-sm items-center gap-3 rounded-2xl bg-white/95 px-4 py-3 shadow-lg">
+          <p className="text-sm text-slate-600">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void loadNews()}
+            className="rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Sliding container */}
       <div
         data-cy="news-track"
         className="h-full transition-transform duration-500 ease-in-out"
         style={{ transform: `translateY(-${current * 100}%)` }}
       >
-        {placeholderNews.map((item, i) => (
+        {newsItems.map((item, i) => (
           <div key={i} className="h-full w-full flex-shrink-0" style={{ height: 'calc(100vh - 56px)' }}>
             <NewsCard {...item} />
           </div>
@@ -174,7 +310,7 @@ const Home: React.FC = () => {
 
       {/* Dots indicator */}
       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-10">
-        {placeholderNews.map((_, i) => (
+        {newsItems.map((_, i) => (
           <button
             key={i}
             onClick={() => goTo(i)}
