@@ -57,12 +57,12 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
   - internal\modules\summaries\summaries_test
   - 
 - **Backend API**
-- ## Backend Unit Tests
-Added unit tests for:
-- `summarizeWithGroq` (LLM integration with mocked API)
-- `extractArticleText` (web scraping logic)
-- API response handling (mocked external calls)
-- Utility functions (`parseDotEnv`, `loadDotEnv`, error handling)
+  Added unit tests for:
+  - `summarizeWithGroq` (LLM integration with mocked API)
+  - `extractArticleText` (web scraping logic)
+  - API response handling (mocked external calls)
+  - Utility functions (`parseDotEnv`, `loadDotEnv`, error handling)
+  
   - 
 
 ---
