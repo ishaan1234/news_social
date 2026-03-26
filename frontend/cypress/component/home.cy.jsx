@@ -2,12 +2,42 @@ import React from 'react';
 import App from '../../src/App';
 import Home from '../../src/pages/Home';
 
+const mockNewsResponse = {
+  status: 'ok',
+  totalResults: 2,
+  articles: [
+    {
+      source: { name: 'Electrek' },
+      title: 'Tesla expands in Canada',
+      description: 'Expansion news',
+      url: 'https://example.com/article-1',
+      urlToImage: 'https://picsum.photos/seed/live1/800/600',
+      publishedAt: '2026-03-25T10:00:00Z',
+      summary: 'Tesla is expanding in Canada through new locations and market growth.',
+    },
+    {
+      source: { name: 'Reuters' },
+      title: 'EV market momentum continues',
+      description: 'Momentum update',
+      url: 'https://example.com/article-2',
+      urlToImage: 'https://picsum.photos/seed/live2/800/600',
+      publishedAt: '2026-03-25T09:00:00Z',
+      summary: 'Electric vehicle demand remains strong across major markets.',
+    },
+  ],
+};
+
 describe('Home page', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/news*', mockNewsResponse).as('getNews');
+  });
+
   it('shows placeholder news and moves to the next story', () => {
     cy.viewport(900, 700);
     cy.mount(<Home />);
+    cy.wait('@getNews');
 
-    cy.contains('Headline placeholder').should('be.visible');
+    cy.contains('Tesla expands in Canada').should('be.visible');
     cy.get('[data-cy="news-prev"]').should('be.disabled');
     cy.get('[data-cy="news-next"]').click();
     cy.get('[data-cy="news-prev"]').should('not.be.disabled');
@@ -19,6 +49,7 @@ describe('Home page', () => {
   it('navigates to chat from the navbar', () => {
     cy.viewport(900, 700);
     cy.mount(<App />);
+    cy.wait('@getNews');
 
     cy.get('[data-cy="nav-chat"]').filter(':visible').first().click();
     cy.window().its('location.hash').should('eq', '#/chat');
@@ -28,17 +59,18 @@ describe('Home page', () => {
   it('clicks through every navbar link one by one', () => {
     cy.viewport(900, 700);
     cy.mount(<App />);
+    cy.wait('@getNews');
 
     const navChecks = [
       {
         navId: 'nav-news',
         expectedHash: '#/',
-        expectedText: 'Headline placeholder',
+        expectedText: 'Tesla expands in Canada',
       },
       {
         navId: 'nav-posts',
         expectedHash: '#/posts',
-        expectedText: 'Posts are not wired up yet.',
+        expectedText: 'Post your take on the news',
       },
       {
         navId: 'nav-chat',
