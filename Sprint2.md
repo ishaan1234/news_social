@@ -55,7 +55,7 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
   - internal\modules\headlines\headline_test
   - internal\modules\social\social_test
   - internal\modules\summaries\summaries_test
-  - 
+    
 - **Backend API**
   Added unit tests for:
   - `summarizeWithGroq` (LLM integration with mocked API)
@@ -63,7 +63,6 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
   - API response handling (mocked external calls)
   - Utility functions (`parseDotEnv`, `loadDotEnv`, error handling)
   
-  - 
 
 ---
 
