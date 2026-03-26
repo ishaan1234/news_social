@@ -19,27 +19,27 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
   - schemas  implemented
   - Migration feature added
 - **Generating the News Summary**
-- Extended the news fetching pipeline built in Sprint 1.
-- Implemented server-side web scraping to extract full article content from URLs using readability parsing.
-- Added preprocessing to clean raw HTML content into structured, readable text.
-- Integrated Groq LLM API to generate concise summaries from scraped content.
-- Enforced a summary length constraint (40 to 60 words).
-- Designed pipeline flow: Fetch → Scrape → Clean → Summarize → Respond.
-- Secured all API keys (NewsAPI, Groq) using environment variables.
-- Enhanced `/news` endpoint to return enriched article data with summaries.
-- Improved error handling for external API failures and scraping issues
+  - Extended the news fetching pipeline built in Sprint 1.
+  - Implemented server-side web scraping to extract full article content from URLs using readability parsing.
+  - Added preprocessing to clean raw HTML content into structured, readable text.
+  - Integrated Groq LLM API to generate concise summaries from scraped content.
+  - Enforced a summary length constraint (40 to 60 words).
+  - Designed pipeline flow: Fetch → Scrape → Clean → Summarize → Respond.
+  - Secured all API keys (NewsAPI, Groq) using environment variables.
+  - Enhanced `/news` endpoint to return enriched article data with summaries.
+  - Improved error handling for external API failures and scraping issues
 
   
 - **Integration of Backend and Frontend for the News Page**
-- The home page or the page that displays the news summary now fetches and summarises news in real time instead of placeholders.
+  - The home page or the page that displays the news summary now fetches and summarises news in real time instead of placeholders.
   
 - **Frontend for social media feed**
-- It has placeholder values for selecting the news and posting, with interactive buttons.
-- Posts are stored in local browser for now.
-- Interactive like, comment and post buttons.
+  - It has placeholder values for selecting the news and posting, with interactive buttons.
+  - Posts are stored in local browser for now.
+  - Interactive like, comment and post buttons.
 - **Incorporating chat feature frontend**
-- It has placeholder values for chats, with interactive buttons.
-- Chats are stored in local browser for now.
+  - It has placeholder values for chats, with interactive buttons.
+  - Chats are stored in local browser for now.
   
 ---
 
