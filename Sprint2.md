@@ -4,9 +4,12 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
 ### Planned Sprint 2 items (UI Refining + LLM Incorporation and DB Setup)
 - Backend: LLM API integration
 - Backend: Setting up the db
+- Backend: Generating the News Summary
 - Backend: Integrating the Database into the workflow
-- Frontend: Incorporating a chat feature
-- Frontend & Backend: User Authentication
+- Integration: The main home page showing real time news and news summary fetched through the API and the backend 
+- Frontend: Implementing a social media feed section where people can post their views about a news, and like, comment and share that. (With Placeholders)
+- Frontend: Incorporating a chat feature (Frontend with placeholders)
+- Testing of Both Frontend and Backend.
 
 ## 2. Completed successfully
 - **LLM API Integration**
@@ -15,7 +18,7 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
 - **Setting up the DB**
   - schemas  implemented
   - Migration feature added
-- **Incorporating chat feature**
+- **Generating the News Summary**
 - Extended the news fetching pipeline built in Sprint 1.
 - Implemented server-side web scraping to extract full article content from URLs using readability parsing.
 - Added preprocessing to clean raw HTML content into structured, readable text.
@@ -25,8 +28,19 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
 - Secured all API keys (NewsAPI, Groq) using environment variables.
 - Enhanced `/news` endpoint to return enriched article data with summaries.
 - Improved error handling for external API failures and scraping issues
-  - 
 
+  
+- **Integration of Backend and Frontend for the News Page**
+- The home page or the page that displays the news summary now fetches and summarises news in real time instead of placeholders.
+  
+- **Frontend for social media feed**
+- It has placeholder values for selecting the news and posting, with interactive buttons.
+- Posts are stored in local browser for now.
+- Interactive like, comment and post buttons.
+- **Incorporating chat feature frontend**
+- It has placeholder values for chats, with interactive buttons.
+- Chats are stored in local browser for now.
+  
 ---
 
 ## 3. Not completed this sprint (and why)
@@ -41,11 +55,12 @@ Sprint 2 focus was **UI Refining + Backend Orchestration** (placeholders allowed
 ---
 
 ## 4. List of Unit Tests & Cypress Tests for frontend
-- **? Modules**
-  - 
-- **?? Modules**
-  - 
-
+- **Home page and navbar**
+  - Makes sure the home page components are visible and all the buttons in navbar are clickable
+- **Post feed and post interactions**
+  - Makes sure 'create a post' section is visible and users can like, comment and the like count gets incremented
+- **Chat page**
+  - Makes sure different users for chats are clickable and the buttons to send the message work as the chat is displayed
 ---
 
 ## 5. List of Unit Tests for backend
