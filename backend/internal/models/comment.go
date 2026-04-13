@@ -1,11 +1,15 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Comment struct {
-	ID         int64     `json:"id"`
-	UserID     int64     `json:"user_id"`
-	HeadlineID int64     `json:"headline_id"`
+	ID         uuid.UUID `json:"id"`
+	UserID     uuid.UUID `json:"user_id"`
+	HeadlineID uuid.UUID `json:"headline_id"`
 	Content    string    `json:"content"`
 	CreatedAt  time.Time `json:"created_at"`
 }

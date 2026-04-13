@@ -1,12 +1,14 @@
-module news_social/backend
+module github.com/ishaan1234/news_social/backend
 
 go 1.25.5
 
 require (
 	firebase.google.com/go/v4 v4.19.0
 	github.com/go-chi/chi/v5 v5.2.5
+	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/google/uuid v1.6.0
 	github.com/mackee/go-readability v0.3.1
-	google.golang.org/api v0.275.0
+	golang.org/x/crypto v0.48.0
 )
 
 require (

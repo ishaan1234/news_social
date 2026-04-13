@@ -1,10 +1,14 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Summary struct {
-	ID         int64     `json:"id"`
-	HeadlineID int64     `json:"headline_id"`
+	ID         uuid.UUID `json:"id"`
+	HeadlineID uuid.UUID `json:"headline_id"`
 	Content    string    `json:"content"`
 	Model      string    `json:"model"`
 	CreatedAt  time.Time `json:"created_at"`

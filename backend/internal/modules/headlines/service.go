@@ -1,6 +1,6 @@
 package headlines
 
-import "social-news/internal/models"
+import "github.com/ishaan1234/news_social/backend/internal/models"
 
 type Service struct {
 	repo ArticleAggregator

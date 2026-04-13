@@ -1,6 +1,6 @@
 package social
 
-import "social-news/internal/models"
+import "github.com/ishaan1234/news_social/backend/internal/models"
 
 type Repository interface {
 	Create(comment *models.Comment) error
@@ -15,16 +15,14 @@ func NewService(repo Repository) *Service {
 }
 
 type CreateCommentRequest struct {
-	UserID     int64  `json:"user_id"`
-	HeadlineID int64  `json:"headline_id"`
+	UserID     string `json:"user_id"`
+	HeadlineID string `json:"headline_id"`
 	Content    string `json:"content"`
 }
 
 func (s *Service) CreateComment(req CreateCommentRequest) (*models.Comment, error) {
 	comment := &models.Comment{
-		UserID:     req.UserID,
-		HeadlineID: req.HeadlineID,
-		Content:    req.Content,
+		Content: req.Content,
 	}
 	return comment, s.repo.Create(comment)
 }
