@@ -3,40 +3,41 @@ package headlines
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
+	"strconv"
 )
 
 type Handler struct {
 	service *Service
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(s *Service) *Handler {
+	return &Handler{service: s}
 }
 
-func (h *Handler) Routes() chi.Router {
-	r := chi.NewRouter()
-	r.Get("/", h.List)
-	r.Get("/{id}", h.Get)
-	return r
-}
+func (h *Handler) CreateHeadline(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Title string `json:"title"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
 
-func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	headlines, err := h.service.ListHeadlines()
+	id, err := h.service.CreateHeadline(r.Context(), req.Title)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(headlines)
+
+	json.NewEncoder(w).Encode(map[string]int{"id": id})
 }
 
-func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	data, err := h.service.GetHeadlineDetails(id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+func (h *Handler) GetHeadlines(w http.ResponseWriter, r *http.Request) {
+	data, _ := h.service.GetHeadlines(r.Context())
+	json.NewEncoder(w).Encode(data)
+}
+
+func (h *Handler) GetHeadline(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, _ := strconv.Atoi(idStr)
+
+	data, _ := h.service.GetHeadline(r.Context(), id)
 	json.NewEncoder(w).Encode(data)
 }
