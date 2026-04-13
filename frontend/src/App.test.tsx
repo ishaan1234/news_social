@@ -57,3 +57,12 @@ test('renders the chat interface on the chat route', () => {
   expect(screen.getByText(/chat with your people/i)).toBeInTheDocument();
   expect(screen.getByPlaceholderText(/type a message/i)).toBeInTheDocument();
 });
+
+test('renders the profile interface on the profile route', () => {
+  window.location.hash = '#/profile';
+  render(<App />);
+
+  expect(screen.getByRole('heading', { name: /avery stone/i })).toBeInTheDocument();
+  expect(screen.getByText(/trending in newshub/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /edit profile/i })).toBeInTheDocument();
+});
