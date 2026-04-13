@@ -1,7 +1,7 @@
 ## 1. Issues planned to address in Sprint 3
 Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (placeholders allowed).
 
-### Planned Sprint 2 items (UI Refining + LLM Incorporation and DB Setup)
+### Planned Sprint 3 items (User Authentication + End-to-End Workflow Integration)
 - Frontend: 
 - Frontend: 
 - Backend:
