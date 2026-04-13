@@ -64,3 +64,12 @@ func (s *Service) GenerateAndSaveSummary(ctx context.Context, headlineID int, co
 func (s *Service) GetSummary(ctx context.Context, headlineID int) (models.Summary, error) {
 	return s.repo.GetSummary(ctx, headlineID)
 }
+func (s *Service) GetOrGenerateSummary(ctx context.Context, headlineID int, content string) (string, error) {
+
+	existing, _ := s.repo.GetSummary(ctx, headlineID)
+	if existing.Summary != "" {
+		return existing.Summary, nil
+	}
+
+	return s.GenerateAndSaveSummary(ctx, headlineID, content)
+}

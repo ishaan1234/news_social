@@ -1,19 +1,26 @@
 package headlines
 
-import "github.com/ishaan1234/news_social/backend/internal/models"
+import (
+	"context"
+	"github.com/ishaan1234/news_social/backend/internal/models"
+)
 
 type Service struct {
-	repo ArticleAggregator
+	repo *Repository
 }
 
-func NewService(repo ArticleAggregator) *Service {
+func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) ListHeadlines() ([]models.Headline, error) {
-	return s.repo.ListHeadlines()
+func (s *Service) CreateHeadline(ctx context.Context, title string) (int, error) {
+	return s.repo.Create(ctx, title)
 }
 
-func (s *Service) GetHeadlineDetails(id string) (any, error) {
-	return s.repo.FetchHeadlineBundle(id)
+func (s *Service) GetHeadlines(ctx context.Context) ([]models.Headline, error) {
+	return s.repo.GetAll(ctx)
+}
+
+func (s *Service) GetHeadline(ctx context.Context, id int) (models.Headline, error) {
+	return s.repo.GetByID(ctx, id)
 }

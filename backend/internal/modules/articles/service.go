@@ -43,3 +43,15 @@ func (s *Service) FetchAndSaveArticles(ctx context.Context, headlineID int, topi
 func (s *Service) GetArticles(ctx context.Context, headlineID int) ([]models.Article, error) {
 	return s.repo.GetArticlesByHeadline(ctx, headlineID)
 }
+
+func (s *Service) GetOrFetchArticles(ctx context.Context, headlineID int, topic string) ([]models.Article, error) {
+
+	// 1. Try DB first
+	existing, _ := s.repo.GetArticlesByHeadline(ctx, headlineID)
+	if len(existing) > 0 {
+		return existing, nil
+	}
+
+	// 2. Fetch from API
+	return s.FetchAndSaveArticles(ctx, headlineID, topic)
+}
