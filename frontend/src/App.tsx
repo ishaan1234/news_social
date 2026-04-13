@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Chat from './pages/Chat';
 import Posts from './pages/Posts';
+import Profile from './pages/Profile';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 export type AppRoute = '/' | '/posts' | '/chat' | '/profile' | '/settings';
@@ -29,12 +30,7 @@ const renderRoute = (route: AppRoute) => {
     case '/posts':
       return <Posts />;
     case '/profile':
-      return (
-        <PlaceholderPage
-          title="Profile is still a placeholder."
-          description="Chat is available now. Profile data and editing can plug into the same frontend routing pattern later."
-        />
-      );
+      return <Profile />;
     case '/settings':
       return (
         <PlaceholderPage
