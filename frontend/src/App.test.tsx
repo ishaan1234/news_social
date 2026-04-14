@@ -66,3 +66,24 @@ test('renders the profile interface on the profile route', () => {
   expect(screen.getByText(/trending in newshub/i)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /edit profile/i })).toBeInTheDocument();
 });
+
+test('renders the auth interface on the auth route', () => {
+  window.location.hash = '#/auth';
+  render(<App />);
+
+  expect(
+    screen.getByRole('heading', { name: /account access/i })
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
+});
+
+test('renders the settings interface on the settings route', () => {
+  window.location.hash = '#/settings';
+  render(<App />);
+
+  expect(screen.getByRole('heading', { name: /settings/i })).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: /save changes/i })
+  ).toBeInTheDocument();
+  expect(screen.getByText(/notification preferences/i)).toBeInTheDocument();
+});

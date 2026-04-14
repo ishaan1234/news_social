@@ -80,12 +80,12 @@ describe('Home page', () => {
       {
         navId: 'nav-profile',
         expectedHash: '#/profile',
-        expectedText: 'Profile is still a placeholder.',
+        expectedText: 'Edit profile',
       },
       {
         navId: 'nav-settings',
         expectedHash: '#/settings',
-        expectedText: 'Settings are still pending.',
+        expectedText: 'Home feed and summaries',
       },
     ];
 

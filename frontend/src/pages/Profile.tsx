@@ -1,4 +1,4 @@
-import React, { ChangeEvent, FormEvent, useState } from 'react';
+import React, { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import {
   ArrowTrendingUpIcon,
   ArrowUpOnSquareIcon,
@@ -13,6 +13,12 @@ import {
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
 import { HeartIcon } from '@heroicons/react/24/solid';
+import {
+  AuthSession,
+  getInitials,
+  getSessionDisplayName,
+  getSessionHandle,
+} from '../auth';
 
 type TimelineTab = 'Posts' | 'Replies' | 'Media' | 'Likes';
 
@@ -55,6 +61,10 @@ interface SuggestedProfile {
   accent: string;
 }
 
+interface ProfileProps {
+  authSession?: AuthSession | null;
+}
+
 const initialProfile: ProfileDraft = {
   name: 'Avery Stone',
   handle: '@averystone',
@@ -64,6 +74,24 @@ const initialProfile: ProfileDraft = {
   location: 'Brooklyn, New York',
   website: 'newshub.example/avery',
   email: 'avery@newshub.example',
+};
+
+const buildProfileFromSession = (authSession: AuthSession | null): ProfileDraft => {
+  if (!authSession) {
+    return initialProfile;
+  }
+
+  const name = getSessionDisplayName(authSession, initialProfile.name);
+  const handle = getSessionHandle(authSession, initialProfile.handle);
+  const websiteHandle = handle.replace(/^@/, '') || 'profile';
+
+  return {
+    ...initialProfile,
+    name,
+    handle,
+    website: `newshub.example/${websiteHandle}`,
+    email: authSession.user?.email || initialProfile.email,
+  };
 };
 
 const timelineTabs: TimelineTab[] = ['Posts', 'Replies', 'Media', 'Likes'];
@@ -192,11 +220,24 @@ const suggestedProfiles: SuggestedProfile[] = [
   },
 ];
 
-const Profile: React.FC = () => {
-  const [profile, setProfile] = useState(initialProfile);
-  const [draftProfile, setDraftProfile] = useState(initialProfile);
+const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
+  const [profile, setProfile] = useState<ProfileDraft>(() =>
+    buildProfileFromSession(authSession)
+  );
+  const [draftProfile, setDraftProfile] = useState<ProfileDraft>(() =>
+    buildProfileFromSession(authSession)
+  );
   const [activeTab, setActiveTab] = useState<TimelineTab>('Posts');
   const [isEditing, setIsEditing] = useState(false);
+  const [followedProfiles, setFollowedProfiles] = useState<string[]>([]);
+  const connectedAccountName = getSessionDisplayName(authSession, 'NewsHub User');
+  const profileInitials = getInitials(profile.name);
+
+  useEffect(() => {
+    const syncedProfile = buildProfileFromSession(authSession);
+    setProfile(syncedProfile);
+    setDraftProfile(syncedProfile);
+  }, [authSession]);
 
   const visibleTimelineItems = timelineItems.filter(
     (item) => item.tab === activeTab
@@ -227,6 +268,14 @@ const Profile: React.FC = () => {
     setIsEditing(false);
   };
 
+  const toggleFollow = (profileId: string) => {
+    setFollowedProfiles((previousProfiles) =>
+      previousProfiles.includes(profileId)
+        ? previousProfiles.filter((currentProfileId) => currentProfileId !== profileId)
+        : [...previousProfiles, profileId]
+    );
+  };
+
   return (
     <main data-cy="profile-page" className="relative overflow-hidden">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
@@ -234,7 +283,7 @@ const Profile: React.FC = () => {
           <div className="px-5 py-6 sm:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex h-28 w-28 items-center justify-center rounded-[28px] border-4 border-white bg-gradient-to-br from-amber-300 via-orange-300 to-sky-300 text-3xl font-bold text-slate-950 shadow-lg shadow-slate-300/60 sm:h-32 sm:w-32 sm:text-4xl">
-                AS
+                {profileInitials}
               </div>
 
               <button
@@ -294,6 +343,7 @@ const Profile: React.FC = () => {
                       key={tab}
                       type="button"
                       onClick={() => setActiveTab(tab)}
+                      data-cy={`profile-tab-${tab.toLowerCase()}`}
                       className={`relative min-w-[110px] px-4 py-4 text-sm font-semibold transition ${
                         isActive
                           ? 'text-slate-900'
@@ -336,7 +386,7 @@ const Profile: React.FC = () => {
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 via-orange-300 to-sky-300 text-sm font-bold text-slate-950">
-                      AS
+                      {profileInitials}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -412,6 +462,60 @@ const Profile: React.FC = () => {
 
           <aside className="space-y-6">
             <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+                Connected account
+              </p>
+
+              {authSession ? (
+                <>
+                  <h2 className="mt-3 text-xl font-bold text-slate-900">
+                    {connectedAccountName}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {authSession.user?.email || 'No email returned'}
+                  </p>
+                  <p className="mt-4 text-sm leading-6 text-slate-600">
+                    {authSession.user?.email_verified
+                      ? 'This frontend session matches a verified backend account.'
+                      : 'This account is signed up, but email verification is still pending.'}
+                  </p>
+                  <div className="mt-4 rounded-[22px] bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                    <p>
+                      UID: {authSession.user?.uid || 'Unavailable'}
+                    </p>
+                    <p className="mt-2">
+                      Token stored locally for this browser session.
+                    </p>
+                  </div>
+                  {!authSession.user?.email_verified && (
+                    <a
+                      href="#/auth"
+                      className="mt-4 inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Resend verification email
+                    </a>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h2 className="mt-3 text-xl font-bold text-slate-900">
+                    No backend session yet
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">
+                    The profile UI is live, but the backend auth account is not
+                    connected in this browser yet.
+                  </p>
+                  <a
+                    href="#/auth"
+                    className="mt-4 inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    Go to auth
+                  </a>
+                </>
+              )}
+            </section>
+
+            <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold text-slate-900">About</h2>
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 <p>{profile.role}</p>
@@ -476,10 +580,16 @@ const Profile: React.FC = () => {
                         </div>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-slate-800"
+                          data-cy={`profile-follow-${person.id}`}
+                          onClick={() => toggleFollow(person.id)}
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+                            followedProfiles.includes(person.id)
+                              ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                              : 'bg-slate-900 text-white hover:bg-slate-800'
+                          }`}
                         >
                           <UserPlusIcon className="h-4 w-4" />
-                          Follow
+                          {followedProfiles.includes(person.id) ? 'Following' : 'Follow'}
                         </button>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -496,7 +606,10 @@ const Profile: React.FC = () => {
         {isEditing && (
           <div className="fixed inset-0 z-[60] overflow-y-auto bg-slate-950/40 p-4 sm:p-6">
             <div className="flex min-h-full items-start justify-center">
-              <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl sm:max-h-[calc(100vh-3rem)]">
+              <div
+                data-cy="profile-edit-modal"
+                className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl sm:max-h-[calc(100vh-3rem)]"
+              >
                 <div className="shrink-0 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">
                     Edit profile
@@ -520,6 +633,7 @@ const Profile: React.FC = () => {
                           type="text"
                           value={draftProfile.name}
                           onChange={handleFieldChange('name')}
+                          data-cy="profile-name-input"
                           className="mt-2 w-full rounded-[18px] border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-sky-400"
                         />
                       </label>
@@ -614,6 +728,7 @@ const Profile: React.FC = () => {
                         <button
                           type="button"
                           onClick={closeEditor}
+                          data-cy="profile-cancel"
                           className="rounded-full border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                         >
                           Cancel

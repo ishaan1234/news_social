@@ -311,7 +311,7 @@ func newsHandler(w http.ResponseWriter, r *http.Request) {
 	// Build NewsAPI request URL
 	newsURL := "https://newsapi.org/v2/everything?q=" +
 		url.QueryEscape(query) +
-		"&sortBy=publishedAt&pageSize=2&language=en"
+		"&sortBy=publishedAt&pageSize=10&language=en"
 
 	req, err := http.NewRequest(http.MethodGet, newsURL, nil)
 	if err != nil {
