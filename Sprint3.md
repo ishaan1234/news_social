@@ -44,8 +44,9 @@ Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (pl
 ---
 
 ## 4. List of Unit Tests & Cypress Tests for frontend
-- ****
-  - 
+- Cypress tests to click all the buttons on profile section
+- Cypress tests to check all the buttons, radio boxes and toggles in settings
+  
 ---
 
 ## 5. List of Unit Tests for backend
