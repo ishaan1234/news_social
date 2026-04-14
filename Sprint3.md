@@ -2,8 +2,10 @@
 Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (placeholders allowed).
 
 ### Planned Sprint 3 items (User Authentication + End-to-End Workflow Integration)
-- Frontend: 
-- Frontend: 
+- Frontend: Implementing the settings page with placeholders
+- Frontend: Implementing the profile section with placeholders
+- Frontend: Implementing the auth section
+- Frontend + Backend Integration: Integrating the Google Auth backend with the frontend
 - Backend:
 - Backend;
 - Backend: Server setup and Routing
@@ -13,14 +15,11 @@ Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (pl
 
 
 ## 2. Completed successfully
-- ****
-  - 
-  - 
-
+- **Settings Page (Frontend)**
+  - It has various user options of how the user wants their summary, their message preferences, etc
   
-- ****
-  - 
-  - 
+- **Profile (Frontend)**
+  - It has various user options of how the user wants their summary, their message preferences, etc
   
 - ****
   - 
