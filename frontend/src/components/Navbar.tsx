@@ -5,6 +5,12 @@ import {
   Bars3Icon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
+import {
+  AuthSession,
+  getInitials,
+  getSessionDisplayName,
+  isVerifiedAuthSession,
+} from '../auth';
 
 const navLinks = [
   { name: 'News', path: '/', href: '#/' },
@@ -16,10 +22,19 @@ const navLinks = [
 
 interface NavbarProps {
   currentPath: string;
+  authSession: AuthSession | null;
+  onSignOut: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ currentPath }) => {
+const Navbar: React.FC<NavbarProps> = ({
+  currentPath,
+  authSession,
+  onSignOut,
+}) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const sessionName = getSessionDisplayName(authSession, 'NewsHub User');
+  const sessionInitials = getInitials(sessionName);
+  const hasVerifiedSession = isVerifiedAuthSession(authSession);
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
@@ -79,6 +94,44 @@ const Navbar: React.FC<NavbarProps> = ({ currentPath }) => {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
             </button>
 
+            {hasVerifiedSession ? (
+              <>
+                <a
+                  href="#/profile"
+                  data-cy="nav-account"
+                  className="hidden sm:flex items-center gap-3 rounded-full border border-slate-200 px-2 py-1.5 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                    {sessionInitials}
+                  </span>
+                  <span className="max-w-[140px] truncate pr-1 text-sm font-medium text-slate-700">
+                    {sessionName}
+                  </span>
+                </a>
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  data-cy="nav-signout"
+                  className="hidden rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:inline-flex"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <a
+                href="#/auth"
+                data-cy="nav-auth"
+                aria-current={currentPath === '/auth' ? 'page' : undefined}
+                className={`hidden rounded-full px-4 py-2 text-sm font-semibold transition sm:inline-flex ${
+                  currentPath === '/auth'
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                Sign in
+              </a>
+            )}
+
             <button
               className="md:hidden p-2 text-gray-500"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -113,6 +166,43 @@ const Navbar: React.FC<NavbarProps> = ({ currentPath }) => {
               </a>
             );
           })}
+
+          {hasVerifiedSession ? (
+            <>
+              <a
+                href="#/profile"
+                data-cy="nav-account"
+                className="block text-sm py-1.5 text-gray-500 hover:text-gray-900"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Account
+              </a>
+              <button
+                type="button"
+                data-cy="nav-signout"
+                onClick={() => {
+                  onSignOut();
+                  setMobileMenuOpen(false);
+                }}
+                className="block w-full text-left text-sm py-1.5 text-gray-500 hover:text-gray-900"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <a
+              href="#/auth"
+              data-cy="nav-auth"
+              className={`block text-sm py-1.5 ${
+                currentPath === '/auth'
+                  ? 'text-blue-600 font-medium'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Sign in
+            </a>
+          )}
         </div>
       )}
     </nav>

@@ -1,14 +1,34 @@
 import React, { useEffect, useState } from 'react';
+import {
+  AuthSession,
+  clearStoredAuthSession,
+  readStoredAuthSession,
+  storeAuthSession,
+} from './auth';
 import Navbar from './components/Navbar';
+import Auth from './pages/Auth';
 import Home from './pages/Home';
 import Chat from './pages/Chat';
 import Posts from './pages/Posts';
 import Profile from './pages/Profile';
-import PlaceholderPage from './pages/PlaceholderPage';
+import Settings from './pages/Settings';
 
-export type AppRoute = '/' | '/posts' | '/chat' | '/profile' | '/settings';
+export type AppRoute =
+  | '/'
+  | '/posts'
+  | '/chat'
+  | '/profile'
+  | '/settings'
+  | '/auth';
 
-const validRoutes: AppRoute[] = ['/', '/posts', '/chat', '/profile', '/settings'];
+const validRoutes: AppRoute[] = [
+  '/',
+  '/posts',
+  '/chat',
+  '/profile',
+  '/settings',
+  '/auth',
+];
 const validRouteSet = new Set<AppRoute>(validRoutes);
 
 const getCurrentRoute = (): AppRoute => {
@@ -23,21 +43,29 @@ const getCurrentRoute = (): AppRoute => {
   return validRouteSet.has(candidate as AppRoute) ? (candidate as AppRoute) : '/';
 };
 
-const renderRoute = (route: AppRoute) => {
+const renderRoute = (
+  route: AppRoute,
+  authSession: AuthSession | null,
+  handleAuthSuccess: (session: AuthSession) => void,
+  handleSignOut: () => void
+) => {
   switch (route) {
     case '/chat':
       return <Chat />;
     case '/posts':
       return <Posts />;
     case '/profile':
-      return <Profile />;
-    case '/settings':
+      return <Profile authSession={authSession} />;
+    case '/auth':
       return (
-        <PlaceholderPage
-          title="Settings are still pending."
-          description="This screen is intentionally static for now so the frontend can focus on the new chat flow."
+        <Auth
+          authSession={authSession}
+          onAuthSuccess={handleAuthSuccess}
+          onSignOut={handleSignOut}
         />
       );
+    case '/settings':
+      return <Settings authSession={authSession} />;
     case '/':
     default:
       return <Home />;
@@ -46,6 +74,19 @@ const renderRoute = (route: AppRoute) => {
 
 function App() {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(getCurrentRoute);
+  const [authSession, setAuthSession] = useState<AuthSession | null>(
+    readStoredAuthSession
+  );
+
+  const handleAuthSuccess = (session: AuthSession) => {
+    setAuthSession(session);
+    storeAuthSession(session);
+  };
+
+  const handleSignOut = () => {
+    clearStoredAuthSession();
+    setAuthSession(null);
+  };
 
   useEffect(() => {
     const syncRoute = () => {
@@ -64,8 +105,17 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Navbar currentPath={currentRoute} />
-      {renderRoute(currentRoute)}
+      <Navbar
+        currentPath={currentRoute}
+        authSession={authSession}
+        onSignOut={handleSignOut}
+      />
+      {renderRoute(
+        currentRoute,
+        authSession,
+        handleAuthSuccess,
+        handleSignOut
+      )}
     </div>
   );
 }

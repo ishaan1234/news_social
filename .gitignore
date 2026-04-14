@@ -5,10 +5,14 @@ node_modules/
 
 # testing
 coverage/
+frontend/cypress/support/component.css
 
 # production
 build/
 dist/
+
+#credentials json
+backend/cmd/api/haveasay-service-account.json
 
 # misc
 .DS_Store
