@@ -18,13 +18,13 @@ Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (pl
 - **Settings Page (Frontend)**
   - It has various user options of how the user wants their summary, their message preferences, etc
   
-- **Profile (Frontend)**
-  - It has various user options of how the user wants their summary, their message preferences, etc
+- **Profile (Frontend + auth integration)**
+  - It has the integration with Auth, that the name shown is of the authenticated user, rest other inofrmation is placeholders for now.
   
-- ****
-  - 
-  - 
-  - 
+- **Frontend + Backend (Auth) Integration**
+  - Integrated the backend auth with frontend.
+  - Profile shows the name of the signed in person instead of placeholders 
+    
 - **Server Implemenation**
   - Dependency intitialization and middleware integration
   - Routing has been implemented
