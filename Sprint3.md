@@ -54,7 +54,15 @@ Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (pl
   - internal\server\server_http_test
   - internal\utils\errors_test
   - internal\utils\http_response_test
-  - 
+  
+  - cmd\api\firebase_email_password_auth_test
+    - TestNormalizeEmail
+    - TestNewFirebaseIdentityClient
+    - TestSignupHandlerValidation
+    - TestLoginHandlerValidation
+    - TestResendVerificationEmailHandlerValidation
+    - TestRegisterFirebaseEmailPasswordRoutes
+    - TestValidationResponsesAreJSON
 ---
 
 ## 6. Documentation for backend API
