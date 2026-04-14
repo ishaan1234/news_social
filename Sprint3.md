@@ -6,8 +6,8 @@ Sprint 3 focus was **User Authentication + End-to-End Workflow Integration** (pl
 - Frontend: Implementing the profile section with placeholders
 - Frontend: Implementing the auth section
 - Frontend + Backend Integration: Integrating the Google Auth backend with the frontend
-- Backend:
-- Backend;
+- Backend: Configuring Authentication Routes and Request Validation
+- Backend: Implementing Email/Password Authentication APIs (Signup, Login, Email Verification Resend)
 - Backend: Server setup and Routing
 - Backend: Utility Standardization
 - Backend: Refining existing modules for end-to-end workflow integration
