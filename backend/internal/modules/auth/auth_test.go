@@ -2,40 +2,42 @@ package auth
 
 import (
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func TestService_ValidateToken(t *testing.T) {
-	service := NewService()
-
-	tests := []struct {
-		name       string
-		token      string
-		wantUserID int64
-		wantErr    bool
-	}{
-		{
-			name:       "valid token",
-			token:      "valid-token",
-			wantUserID: 1,
-			wantErr:    false,
-		},
-		{
-			name:       "empty token",
-			token:      "",
-			wantUserID: 1, // current implementation returns 1
-			wantErr:    false,
-		},
+func signedToken(t *testing.T, secret string, userID int) string {
+	t.Helper()
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"exp":     time.Now().Add(time.Hour).Unix(),
 	}
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+	return token
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			userID, err := service.ValidateToken(tt.token)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateToken() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if userID != tt.wantUserID {
-				t.Errorf("ValidateToken() = %v, want %v", userID, tt.wantUserID)
-			}
-		})
+func TestService_ValidateToken(t *testing.T) {
+	service := NewService("secret")
+	token := signedToken(t, "secret", 42)
+
+	userID, err := service.ValidateToken(token)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if userID != 42 {
+		t.Fatalf("expected user id 42, got %d", userID)
+	}
+}
+
+func TestService_ValidateToken_Empty(t *testing.T) {
+	service := NewService("secret")
+
+	_, err := service.ValidateToken("")
+	if err == nil {
+		t.Fatalf("expected error")
 	}
 }

@@ -1,57 +1,67 @@
 package articles
 
-import "github.com/ishaan1234/news_social/backend/internal/models"
+import (
+	"context"
+	"fmt"
 
-type Service struct {
-	newsClient newsAPIClient
-	repo Repository
+	"github.com/ishaan1234/news_social/backend/internal/models"
+	"github.com/ishaan1234/news_social/backend/pkg/clients/newsapi"
+)
+
+type NewsClient interface {
+	GetTopHeadlines(topic string) ([]newsapi.Article, error)
 }
 
-func NewService(newsClient newsAPIClient, repo Repository) *Service {
+type Service struct {
+	newsClient NewsClient
+	repo       Repository
+}
+
+func NewService(newsClient NewsClient, repo Repository) *Service {
 	return &Service{newsClient: newsClient, repo: repo}
 }
 
-func (s *Service) GetByHeadline(headlineID int64) ([]models.Article, error) {
-	return s.repo.FindByHeadline(headlineID)
-}
-
-// Fetch and persist articles for a headline/topic
 func (s *Service) FetchAndSaveArticles(ctx context.Context, headlineID int, topic string) ([]models.Article, error) {
-	rawArticles, err := s.newsClient.GetTopHeadlines(topic)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch articles: %w", err)
+	if s.newsClient == nil {
+		return nil, fmt.Errorf("news client is not configured")
 	}
 
-	var articles []models.Article
-	for _, ra := range rawArticles {
-		articles = append(articles, models.Article{
+	rawArticles, err := s.newsClient.GetTopHeadlines(topic)
+	if err != nil {
+		return nil, fmt.Errorf("fetch articles: %w", err)
+	}
+
+	items := make([]models.Article, 0, len(rawArticles))
+	for _, a := range rawArticles {
+		items = append(items, models.Article{
 			HeadlineID: headlineID,
-			Source:     ra.Source,
-			URL:        ra.URL,
-			Content:    ra.Content,
+			Source:     a.Source,
+			Title:      a.Title,
+			URL:        a.URL,
+			Content:    a.Content,
 		})
 	}
 
-	if err := s.repo.SaveArticles(ctx, headlineID, articles); err != nil {
-		return nil, fmt.Errorf("failed to save articles: %w", err)
+	if s.repo != nil && len(items) > 0 {
+		if err := s.repo.SaveArticles(ctx, headlineID, items); err != nil {
+			return nil, fmt.Errorf("save articles: %w", err)
+		}
 	}
 
-	return articles, nil
+	return items, nil
 }
 
-// Retrieve articles by headline
 func (s *Service) GetArticles(ctx context.Context, headlineID int) ([]models.Article, error) {
+	if s.repo == nil {
+		return nil, fmt.Errorf("article repository is not configured")
+	}
 	return s.repo.GetArticlesByHeadline(ctx, headlineID)
 }
 
 func (s *Service) GetOrFetchArticles(ctx context.Context, headlineID int, topic string) ([]models.Article, error) {
-
-	// 1. Try DB first
-	existing, _ := s.repo.GetArticlesByHeadline(ctx, headlineID)
-	if len(existing) > 0 {
-		return existing, nil
+	articles, err := s.GetArticles(ctx, headlineID)
+	if err == nil && len(articles) > 0 {
+		return articles, nil
 	}
-
-	// 2. Fetch from API
 	return s.FetchAndSaveArticles(ctx, headlineID, topic)
 }

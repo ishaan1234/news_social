@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"github.com/ishaan1234/news_social/backend/internal/utils"
 )
 
 type Handler struct {
@@ -18,26 +20,40 @@ func (h *Handler) CreateHeadline(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title string `json:"title"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
-
-	id, err := h.service.CreateHeadline(r.Context(), req.Title)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]int{"id": id})
+	id, err := h.service.CreateHeadline(r.Context(), req.Title)
+	if err != nil {
+		utils.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, map[string]int{"id": id})
 }
 
 func (h *Handler) GetHeadlines(w http.ResponseWriter, r *http.Request) {
-	data, _ := h.service.GetHeadlines(r.Context())
-	json.NewEncoder(w).Encode(data)
+	data, err := h.service.GetHeadlines(r.Context())
+	if err != nil {
+		utils.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, data)
 }
 
 func (h *Handler) GetHeadline(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	id, _ := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil || id <= 0 {
+		utils.WriteError(w, http.StatusBadRequest, "valid id is required")
+		return
+	}
 
-	data, _ := h.service.GetHeadline(r.Context(), id)
-	json.NewEncoder(w).Encode(data)
+	data, err := h.service.GetHeadline(r.Context(), id)
+	if err != nil {
+		utils.WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, data)
 }

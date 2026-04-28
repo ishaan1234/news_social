@@ -1,14 +1,10 @@
 package models
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
+import "time"
 
 type Headline struct {
-	ID        uuid.UUID `json:"id"`
+	ID        int       `json:"id"`
 	Title     string    `json:"title"`
-	Slug      string    `json:"slug"`
+	Slug      string    `json:"slug,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }

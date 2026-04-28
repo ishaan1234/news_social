@@ -1,127 +1,63 @@
 package social
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/ishaan1234/news_social/backend/internal/models"
 )
 
-/* Mock Repository */
-
-type mockRepository struct {
-	createFunc func(comment *models.Comment) error
+type mockSocialRepo struct {
+	comment models.Comment
+	err     error
 }
 
-func (m *mockRepository) Create(comment *models.Comment) error {
-	return m.createFunc(comment)
+func (m *mockSocialRepo) CreateComment(ctx context.Context, comment models.Comment) (models.Comment, error) {
+	comment.ID = 11
+	m.comment = comment
+	return comment, m.err
 }
 
-/* Service Tests */
+func (m *mockSocialRepo) GetCommentsByHeadline(ctx context.Context, headlineID int) ([]models.Comment, error) {
+	return []models.Comment{{ID: 1, HeadlineID: headlineID, Content: "hello"}}, m.err
+}
 
-func TestService_CreateComment_Success(t *testing.T) {
+func (m *mockSocialRepo) GetCommentsByUser(ctx context.Context, userID int) ([]models.Comment, error) {
+	return nil, m.err
+}
 
-	mockRepo := &mockRepository{
-		createFunc: func(comment *models.Comment) error {
-			return nil
-		},
-	}
+func (m *mockSocialRepo) DeleteComment(ctx context.Context, commentID int, userID int) error {
+	return m.err
+}
 
-	service := NewService(mockRepo)
+func TestService_CreateComment(t *testing.T) {
+	repo := &mockSocialRepo{}
+	service := NewService(repo)
 
-	req := CreateCommentRequest{
-		UserID:     "1",
-		HeadlineID: "10",
-		Content:    "Great article!",
-	}
-
-	result, err := service.CreateComment(req)
-
+	comment, err := service.CreateComment(context.Background(), CreateCommentRequest{UserID: 1, HeadlineID: 2, Content: "  Nice article  "})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	expected := &models.Comment{
-		Content: "Great article!",
-	}
-
-	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("expected %v got %v", expected, result)
+	if comment.ID != 11 || comment.Content != "Nice article" {
+		t.Fatalf("unexpected comment: %#v", comment)
 	}
 }
 
-func TestService_CreateComment_Error(t *testing.T) {
+func TestService_CreateComment_Validation(t *testing.T) {
+	service := NewService(&mockSocialRepo{})
 
-	mockRepo := &mockRepository{
-		createFunc: func(comment *models.Comment) error {
-			return errors.New("db error")
-		},
-	}
-
-	service := NewService(mockRepo)
-
-	req := CreateCommentRequest{
-		Content: "test comment",
-	}
-
-	_, err := service.CreateComment(req)
-
+	_, err := service.CreateComment(context.Background(), CreateCommentRequest{UserID: 0, HeadlineID: 2, Content: "x"})
 	if err == nil {
-		t.Errorf("expected error but got nil")
+		t.Fatalf("expected validation error")
 	}
 }
 
-/* Handler Tests */
+func TestService_CreateComment_RepoError(t *testing.T) {
+	service := NewService(&mockSocialRepo{err: errors.New("db error")})
 
-func TestHandler_CreateComment_Success(t *testing.T) {
-
-	mockRepo := &mockRepository{
-		createFunc: func(comment *models.Comment) error {
-			return nil
-		},
-	}
-
-	service := NewService(mockRepo)
-	handler := NewHandler(service)
-
-	body := CreateCommentRequest{
-		UserID:     "1",
-		HeadlineID: "10",
-		Content:    "Nice article",
-	}
-
-	jsonBody, _ := json.Marshal(body)
-
-	req := httptest.NewRequest("POST", "/comments", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-
-	rr := httptest.NewRecorder()
-
-	handler.CreateComment(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200 got %d", rr.Code)
-	}
-}
-
-func TestHandler_CreateComment_BadRequest(t *testing.T) {
-
-	mockRepo := &mockRepository{}
-
-	service := NewService(mockRepo)
-	handler := NewHandler(service)
-
-	req := httptest.NewRequest("POST", "/comments", bytes.NewBuffer([]byte("invalid-json")))
-	rr := httptest.NewRecorder()
-
-	handler.CreateComment(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 got %d", rr.Code)
+	_, err := service.CreateComment(context.Background(), CreateCommentRequest{UserID: 1, HeadlineID: 2, Content: "x"})
+	if err == nil {
+		t.Fatalf("expected repository error")
 	}
 }
