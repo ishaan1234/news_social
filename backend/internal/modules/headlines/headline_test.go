@@ -1,177 +1,61 @@
 package headlines
 
 import (
+	"context"
 	"errors"
-    "testing"
-	/*"net/http"
-	"net/http/httptest"
-    "reflect"
-    "context"*/
-	
+	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/ishaan1234/news_social/backend/internal/models"
-    /*"github.com/google/uuid"
-    headlineService "github.com/ishaan1234/news_social/backend/internal/service"*/
 )
 
-/* Mock for ArticleAggregator */
-type mockAggregator struct {
-	listHeadlinesFunc       func() ([]models.Headline, error)
-	fetchHeadlineBundleFunc func(id string) (any, error)
+type mockHeadlineRepo struct {
+	createdTitle string
+	err          error
 }
 
-func (m *mockAggregator) ListHeadlines() ([]models.Headline, error) {
-	return m.listHeadlinesFunc()
+func (m *mockHeadlineRepo) Create(ctx context.Context, title string) (int, error) {
+	m.createdTitle = title
+	return 7, m.err
 }
 
-func (m *mockAggregator) FetchHeadlineBundle(id string) (any, error) {
-	return m.fetchHeadlineBundleFunc(id)
+func (m *mockHeadlineRepo) GetAll(ctx context.Context) ([]models.Headline, error) {
+	return []models.Headline{{ID: 1, Title: "One"}}, m.err
 }
 
-/* Tests for original Service (ArticleAggregator) and Handler */
-/*
-func TestService_ListHeadlines(t *testing.T) {
-
-	expected := []models.Headline{
-		{ID: "1", Title: "Breaking News"},
-		{ID: "2", Title: "Tech Headlines"},
+func (m *mockHeadlineRepo) GetByID(ctx context.Context, id int) (models.Headline, error) {
+	if m.err != nil {
+		return models.Headline{}, m.err
 	}
+	return models.Headline{ID: id, Title: "One"}, nil
+}
 
-	mockRepo := &mockAggregator{
-		listHeadlinesFunc: func() ([]models.Headline, error) {
-			return expected, nil
-		},
-	}
+func TestService_CreateHeadline(t *testing.T) {
+	repo := &mockHeadlineRepo{}
+	service := NewService(repo)
 
-	service := NewService(mockRepo)
-
-	result, err := service.ListHeadlines()
-
+	id, err := service.CreateHeadline(context.Background(), "  Breaking News  ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("expected %v got %v", expected, result)
+	if id != 7 || repo.createdTitle != "Breaking News" {
+		t.Fatalf("headline was not created correctly")
 	}
 }
-*/
 
-func TestService_GetHeadlineDetails_Error(t *testing.T) {
+func TestService_CreateHeadline_EmptyTitle(t *testing.T) {
+	service := NewService(&mockHeadlineRepo{})
 
-	mockRepo := &mockAggregator{
-		fetchHeadlineBundleFunc: func(id string) (any, error) {
-			return nil, errors.New("not found")
-		},
-	}
-
-	service := NewService(mockRepo)
-
-	_, err := service.GetHeadlineDetails("123")
-
+	_, err := service.CreateHeadline(context.Background(), "   ")
 	if err == nil {
-		t.Errorf("expected error but got nil")
+		t.Fatalf("expected validation error")
 	}
 }
 
-/* Handler Tests */
-/*
-func TestHandler_List(t *testing.T) {
+func TestService_GetHeadline_Error(t *testing.T) {
+	service := NewService(&mockHeadlineRepo{err: errors.New("not found")})
 
-	expected := []models.Headline{
-		{ID: "1", Title: "World News"},
+	_, err := service.GetHeadline(context.Background(), 1)
+	if err == nil {
+		t.Fatalf("expected error")
 	}
-
-	mockRepo := &mockAggregator{
-		listHeadlinesFunc: func() ([]models.Headline, error) {
-			return expected, nil
-		},
-	}
-
-	service := NewService(mockRepo)
-	handler := NewHandler(service)
-
-	req := httptest.NewRequest("GET", "/", nil)
-	rr := httptest.NewRecorder()
-
-	handler.List(rr, req)
-
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("expected status 200 got %d", status)
-	}
-}
-
-func TestHandler_Get(t *testing.T) {
-
-	mockRepo := &mockAggregator{
-		fetchHeadlineBundleFunc: func(id string) (any, error) {
-			return map[string]string{"headline": "Breaking"}, nil
-		},
-	}
-
-	service := NewService(mockRepo)
-	handler := NewHandler(service)
-
-	req := httptest.NewRequest("GET", "/1", nil)
-	rr := httptest.NewRecorder()
-
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "1")
-	req = req.WithContext(contextWithChi(rctx))
-
-	handler.Get(rr, req)
-
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("expected status 200 got %d", status)
-	}
-}
-*/
-/* headline_service Tests (new code) */
-/*
-func TestHeadlineService_CreateFromArticles(t *testing.T) {
-	hService := &headlineService.HeadlineService{}
-
-	articles := []models.Article{
-		{Title: "Test Article"},
-	}
-
-	result, err := hService.CreateFromArticles(context.Background(), articles)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if result.Title != articles[0].Title {
-		t.Errorf("expected title %s got %s", articles[0].Title, result.Title)
-	}
-}
-
-func TestHeadlineService_GetByID(t *testing.T) {
-	hService := &headlineService.HeadlineService{}
-
-	result, err := hService.GetByID(context.Background(), uuid.New())
-	if err != nil {
-		t.Errorf("expected nil error got %v", err)
-	}
-	if result != nil {
-		t.Errorf("expected nil result got %v", result)
-	}
-}
-
-func TestHeadlineService_GetTrending(t *testing.T) {
-	hService := &headlineService.HeadlineService{}
-
-	result, err := hService.GetTrending(context.Background(), 5)
-	if err != nil {
-		t.Errorf("expected nil error got %v", err)
-	}
-	if result != nil && len(result) != 0 {
-		t.Errorf("expected empty slice got %v", result)
-	}
-}
-*/
-
-/* Helper for chi context */
-func contextWithChi(rctx *chi.Context) interface{} {
-	return rctx
 }

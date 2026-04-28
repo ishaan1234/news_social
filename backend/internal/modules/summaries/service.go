@@ -1,75 +1,72 @@
 package summaries
 
-import {
+import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/ishaan1234/news_social/backend/internal/models"
-	"github.com/ishaan1234/news_social/backend/pkg/clients/openai"
-}
+)
 
 type AIClient interface {
-	Summarize(text string) (string, error)
-}
-
-type Repository interface {
-	FindByHeadline(headlineID int64) (*models.Summary, error)
-	Save(summary *models.Summary) error
+	GenerateSummary(content string) (string, error)
 }
 
 type Service struct {
-	repo Repository
-	ai   AIClient
+	aiClient AIClient
+	repo     Repository
+	model    string
 }
 
-func NewService(repo Repository, ai AIClient) *Service {
-	return &Service{repo: repo, ai: ai}
+func NewService(aiClient AIClient, repo Repository) *Service {
+	return &Service{aiClient: aiClient, repo: repo, model: "gpt-4o-mini"}
 }
 
-// Generate summary for a headline by fetching articles, combining text, and sending to AI
-func (s *Service) GenerateSummary(headlineID string) (*models.Summary, error) {
-	// Fetch articles, combine text, send to AI
-	content, err := s.ai.Summarize("combined article text")
-	if err != nil {
-		return nil, err
+func (s *Service) GenerateAndSaveSummary(ctx context.Context, headlineID int, content string) (models.Summary, error) {
+	if headlineID <= 0 {
+		return models.Summary{}, fmt.Errorf("valid headline id is required")
+	}
+	if strings.TrimSpace(content) == "" {
+		return models.Summary{}, fmt.Errorf("content is required")
+	}
+	if s.aiClient == nil {
+		return models.Summary{}, fmt.Errorf("ai client is not configured")
 	}
 
-	summary := &models.Summary{
-		Content: content,
-		Model:   "gpt-4",
-	}
-
-	return summary, s.repo.Save(summary)
-}
-
-// Generate summary and save to DB
-func (s *Service) GenerateAndSaveSummary(ctx context.Context, headlineID int, content string) (string, error) {
-	summaryText, err := s.aiClient.GenerateSummary(content)
+	text, err := s.aiClient.GenerateSummary(content)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate summary: %w", err)
+		return models.Summary{}, fmt.Errorf("generate summary: %w", err)
 	}
 
 	summary := models.Summary{
 		HeadlineID: headlineID,
-		Summary:    summaryText,
+		Content:    text,
+		Model:      s.model,
 	}
 
-	if err := s.repo.SaveSummary(ctx, summary); err != nil {
-		return "", fmt.Errorf("failed to save summary: %w", err)
+	if s.repo != nil {
+		if err := s.repo.SaveSummary(ctx, summary); err != nil {
+			return models.Summary{}, err
+		}
 	}
 
-	return summaryText, nil
+	return summary, nil
 }
 
-// Fetch existing summary
 func (s *Service) GetSummary(ctx context.Context, headlineID int) (models.Summary, error) {
+	if headlineID <= 0 {
+		return models.Summary{}, fmt.Errorf("valid headline id is required")
+	}
+	if s.repo == nil {
+		return models.Summary{}, fmt.Errorf("summary repository is not configured")
+	}
 	return s.repo.GetSummary(ctx, headlineID)
 }
-func (s *Service) GetOrGenerateSummary(ctx context.Context, headlineID int, content string) (string, error) {
 
-	existing, _ := s.repo.GetSummary(ctx, headlineID)
-	if existing.Summary != "" {
-		return existing.Summary, nil
+func (s *Service) GetOrGenerateSummary(ctx context.Context, headlineID int, content string) (models.Summary, error) {
+	existing, err := s.GetSummary(ctx, headlineID)
+	if err == nil && existing.Content != "" {
+		return existing, nil
 	}
-
 	return s.GenerateAndSaveSummary(ctx, headlineID, content)
 }

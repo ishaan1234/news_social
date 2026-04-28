@@ -4,42 +4,46 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
+
 	"github.com/ishaan1234/news_social/backend/internal/models"
 )
 
-type Repository struct {
+type Repository interface {
+	CreateComment(ctx context.Context, comment models.Comment) (models.Comment, error)
+	GetCommentsByHeadline(ctx context.Context, headlineID int) ([]models.Comment, error)
+	GetCommentsByUser(ctx context.Context, userID int) ([]models.Comment, error)
+	DeleteComment(ctx context.Context, commentID int, userID int) error
+}
+
+type SQLRepository struct {
 	db *sql.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+func NewRepository(db *sql.DB) *SQLRepository {
+	return &SQLRepository{db: db}
 }
 
-//Create Comment
-func (r *Repository) CreateComment(ctx context.Context, comment models.Comment) (int, error) {
-	var id int
-
-	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO comments (user_id, headline_id, content, created_at)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id
-	`,
-		comment.UserID,
-		comment.HeadlineID,
-		comment.Content,
-		time.Now(),
-	).Scan(&id)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to create comment: %w", err)
+func (r *SQLRepository) CreateComment(ctx context.Context, comment models.Comment) (models.Comment, error) {
+	if r == nil || r.db == nil {
+		return models.Comment{}, fmt.Errorf("social repository database is not configured")
 	}
 
-	return id, nil
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO comments (user_id, headline_id, content)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_at
+	`, comment.UserID, comment.HeadlineID, comment.Content).Scan(&comment.ID, &comment.CreatedAt)
+	if err != nil {
+		return models.Comment{}, fmt.Errorf("create comment: %w", err)
+	}
+	return comment, nil
 }
 
-//Get Comments by Headline
-func (r *Repository) GetCommentsByHeadline(ctx context.Context, headlineID int) ([]models.Comment, error) {
+func (r *SQLRepository) GetCommentsByHeadline(ctx context.Context, headlineID int) ([]models.Comment, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("social repository database is not configured")
+	}
+
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, user_id, headline_id, content, created_at
 		FROM comments
@@ -47,31 +51,26 @@ func (r *Repository) GetCommentsByHeadline(ctx context.Context, headlineID int) 
 		ORDER BY created_at DESC
 	`, headlineID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch comments: %w", err)
+		return nil, fmt.Errorf("get comments: %w", err)
 	}
 	defer rows.Close()
 
 	var comments []models.Comment
-
 	for rows.Next() {
 		var c models.Comment
-		if err := rows.Scan(
-			&c.ID,
-			&c.UserID,
-			&c.HeadlineID,
-			&c.Content,
-			&c.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan comment: %w", err)
+		if err := rows.Scan(&c.ID, &c.UserID, &c.HeadlineID, &c.Content, &c.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan comment: %w", err)
 		}
 		comments = append(comments, c)
 	}
-
-	return comments, nil
+	return comments, rows.Err()
 }
 
-// Get Comments by User
-func (r *Repository) GetCommentsByUser(ctx context.Context, userID int) ([]models.Comment, error) {
+func (r *SQLRepository) GetCommentsByUser(ctx context.Context, userID int) ([]models.Comment, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("social repository database is not configured")
+	}
+
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, user_id, headline_id, content, created_at
 		FROM comments
@@ -79,48 +78,40 @@ func (r *Repository) GetCommentsByUser(ctx context.Context, userID int) ([]model
 		ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user comments: %w", err)
+		return nil, fmt.Errorf("get user comments: %w", err)
 	}
 	defer rows.Close()
 
 	var comments []models.Comment
-
 	for rows.Next() {
 		var c models.Comment
-		if err := rows.Scan(
-			&c.ID,
-			&c.UserID,
-			&c.HeadlineID,
-			&c.Content,
-			&c.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan comment: %w", err)
+		if err := rows.Scan(&c.ID, &c.UserID, &c.HeadlineID, &c.Content, &c.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan user comment: %w", err)
 		}
 		comments = append(comments, c)
 	}
-
-	return comments, nil
+	return comments, rows.Err()
 }
 
-//Delete Comment
-func (r *Repository) DeleteComment(ctx context.Context, commentID int, userID int) error {
+func (r *SQLRepository) DeleteComment(ctx context.Context, commentID int, userID int) error {
+	if r == nil || r.db == nil {
+		return fmt.Errorf("social repository database is not configured")
+	}
+
 	result, err := r.db.ExecContext(ctx, `
 		DELETE FROM comments
 		WHERE id = $1 AND user_id = $2
 	`, commentID, userID)
-
 	if err != nil {
-		return fmt.Errorf("failed to delete comment: %w", err)
+		return fmt.Errorf("delete comment: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
+		return fmt.Errorf("check deleted comment: %w", err)
 	}
-
 	if rowsAffected == 0 {
-		return fmt.Errorf("no comment found or unauthorized")
+		return fmt.Errorf("comment not found or unauthorized")
 	}
-
 	return nil
 }

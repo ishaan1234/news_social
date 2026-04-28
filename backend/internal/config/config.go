@@ -7,13 +7,13 @@ import (
 )
 
 type Config struct {
-	Port           string
-	DBUrl          string
-	JWTSecret      string
-	RateLimitRPS   int
-	Environment    string
-	OpenAIAPIKey   string
-	NewsAPIKey     string
+	Port         string
+	DBUrl        string
+	JWTSecret    string
+	RateLimitRPS int
+	Environment  string
+	OpenAIAPIKey string
+	NewsAPIKey   string
 }
 
 func Load() *Config {

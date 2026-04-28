@@ -4,72 +4,43 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
 	_ "github.com/lib/pq"
 )
 
-type PostgresDB struct {
-	Conn *sql.DB
+type Postgres struct {
+	DB *sql.DB
 }
 
-func NewPostgres(dbURL string) *PostgresDB {
-	db, err := sql.Open("postgres", dbURL)
-	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+func NewPostgres(dbURL string) (*Postgres, error) {
+	if dbURL == "" {
+		return nil, fmt.Errorf("database url is required")
 	}
 
-	// Optional: set max connections
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	conn, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
 
-	// Ping to verify connection
+	conn.SetMaxOpenConns(25)
+	conn.SetMaxIdleConns(25)
+	conn.SetConnMaxLifetime(5 * time.Minute)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+	if err := conn.PingContext(ctx); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("connect database: %w", err)
 	}
 
-	return &PostgresDB{
-		Conn: db,
+	return &Postgres{DB: conn}, nil
+}
+
+func (p *Postgres) Close() error {
+	if p == nil || p.DB == nil {
+		return nil
 	}
-}
-
-// Close the database connection
-func (p *PostgresDB) Close() error {
-	return p.Conn.Close()
-}
-
-// Helper function to execute a query with context
-func (p *PostgresDB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	return p.Conn.ExecContext(ctx, query, args...)
-}
-
-// Helper function to query rows with context
-func (p *PostgresDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	return p.Conn.QueryContext(ctx, query, args...)
-}
-
-// Helper function to query single row
-func (p *PostgresDB) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	return p.Conn.QueryRowContext(ctx, query, args...)
-}
-
-// Example migration runner: executes all SQL files in migrations folder
-func (p *PostgresDB) RunMigrations(migrationFiles []string) error {
-	for _, file := range migrationFiles {
-		sqlStmt, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("failed to read migration file %s: %w", file, err)
-		}
-
-		if _, err := p.Conn.Exec(string(sqlStmt)); err != nil {
-			return fmt.Errorf("failed to execute migration %s: %w", file, err)
-		}
-		log.Printf("migration applied: %s", file)
-	}
-	return nil
+	return p.DB.Close()
 }

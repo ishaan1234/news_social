@@ -1,146 +1,68 @@
 package summaries
 
 import (
+	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"reflect"
 	"testing"
 
 	"github.com/ishaan1234/news_social/backend/internal/models"
 )
 
-/* Mock AI Client */
-
 type mockAIClient struct {
-	summarizeFunc func(text string) (string, error)
+	text string
+	err  error
 }
 
-func (m *mockAIClient) Summarize(text string) (string, error) {
-	return m.summarizeFunc(text)
+func (m *mockAIClient) GenerateSummary(content string) (string, error) {
+	return m.text, m.err
 }
 
-/* Mock Repository */
-
-type mockRepository struct {
-	saveFunc func(summary *models.Summary) error
-	findFunc func(headlineID int64) (*models.Summary, error)
+type mockSummaryRepo struct {
+	summary models.Summary
+	err     error
+	saved   models.Summary
 }
 
-func (m *mockRepository) Save(summary *models.Summary) error {
-	return m.saveFunc(summary)
+func (m *mockSummaryRepo) SaveSummary(ctx context.Context, summary models.Summary) error {
+	m.saved = summary
+	return m.err
 }
 
-func (m *mockRepository) FindByHeadline(headlineID int64) (*models.Summary, error) {
-	if m.findFunc != nil {
-		return m.findFunc(headlineID)
-	}
-	return nil, nil
+func (m *mockSummaryRepo) GetSummary(ctx context.Context, headlineID int) (models.Summary, error) {
+	return m.summary, m.err
 }
 
-/* Service Tests */
+func TestService_GenerateAndSaveSummary(t *testing.T) {
+	repo := &mockSummaryRepo{}
+	service := NewService(&mockAIClient{text: "AI generated summary"}, repo)
 
-func TestService_GenerateSummary_Success(t *testing.T) {
-
-	expectedContent := "AI generated summary"
-
-	mockAI := &mockAIClient{
-		summarizeFunc: func(text string) (string, error) {
-			return expectedContent, nil
-		},
-	}
-
-	mockRepo := &mockRepository{
-		saveFunc: func(summary *models.Summary) error {
-			return nil
-		},
-	}
-
-	service := NewService(mockRepo, mockAI)
-
-	result, err := service.GenerateSummary("1")
-
+	summary, err := service.GenerateAndSaveSummary(context.Background(), 9, "article text")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	expected := &models.Summary{
-		Content: expectedContent,
-		Model:   "gpt-4",
-	}
-
-	if !reflect.DeepEqual(result, expected) {
-		t.Errorf("expected %v got %v", expected, result)
+	if summary.Content != "AI generated summary" || repo.saved.HeadlineID != 9 {
+		t.Fatalf("summary was not generated and saved correctly")
 	}
 }
 
-func TestService_GenerateSummary_AIError(t *testing.T) {
+func TestService_GenerateAndSaveSummary_AIError(t *testing.T) {
+	service := NewService(&mockAIClient{err: errors.New("ai failure")}, &mockSummaryRepo{})
 
-	mockAI := &mockAIClient{
-		summarizeFunc: func(text string) (string, error) {
-			return "", errors.New("AI failure")
-		},
-	}
-
-	mockRepo := &mockRepository{}
-
-	service := NewService(mockRepo, mockAI)
-
-	_, err := service.GenerateSummary("1")
-
+	_, err := service.GenerateAndSaveSummary(context.Background(), 9, "article text")
 	if err == nil {
-		t.Errorf("expected error but got nil")
+		t.Fatalf("expected error")
 	}
 }
 
-/* Handler Tests */
+func TestService_GetOrGenerateSummary_UsesExisting(t *testing.T) {
+	repo := &mockSummaryRepo{summary: models.Summary{HeadlineID: 9, Content: "cached"}}
+	service := NewService(&mockAIClient{text: "new"}, repo)
 
-func TestHandler_Generate(t *testing.T) {
-
-	mockAI := &mockAIClient{
-		summarizeFunc: func(text string) (string, error) {
-			return "AI summary", nil
-		},
+	summary, err := service.GetOrGenerateSummary(context.Background(), 9, "article text")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	mockRepo := &mockRepository{
-		saveFunc: func(summary *models.Summary) error {
-			return nil
-		},
-	}
-
-	service := NewService(mockRepo, mockAI)
-	handler := NewHandler(service)
-
-	req := httptest.NewRequest("GET", "/generate?headline_id=1", nil)
-	rr := httptest.NewRecorder()
-
-	handler.Generate(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200 got %d", rr.Code)
-	}
-}
-
-func TestHandler_Generate_Error(t *testing.T) {
-
-	mockAI := &mockAIClient{
-		summarizeFunc: func(text string) (string, error) {
-			return "", errors.New("AI error")
-		},
-	}
-
-	mockRepo := &mockRepository{}
-
-	service := NewService(mockRepo, mockAI)
-	handler := NewHandler(service)
-
-	req := httptest.NewRequest("GET", "/generate?headline_id=1", nil)
-	rr := httptest.NewRecorder()
-
-	handler.Generate(rr, req)
-
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected status 500 got %d", rr.Code)
+	if summary.Content != "cached" {
+		t.Fatalf("expected cached summary")
 	}
 }
