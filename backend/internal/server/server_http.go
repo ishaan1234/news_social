@@ -12,6 +12,7 @@ import (
 	"github.com/ishaan1234/news_social/backend/internal/middleware"
 	"github.com/ishaan1234/news_social/backend/internal/modules/articles"
 	"github.com/ishaan1234/news_social/backend/internal/modules/headlines"
+	"github.com/ishaan1234/news_social/backend/internal/modules/posts"
 	"github.com/ishaan1234/news_social/backend/internal/modules/social"
 	"github.com/ishaan1234/news_social/backend/internal/modules/summaries"
 	"github.com/ishaan1234/news_social/backend/internal/utils"
@@ -39,16 +40,24 @@ func NewHTTPServer(cfg *config.Config, postgres *db.Postgres) *HTTPServer {
 	articleRepo := articles.NewRepository(sqlDB)
 	summaryRepo := summaries.NewRepository(sqlDB)
 	socialRepo := social.NewRepository(sqlDB)
+	var postRepo posts.Repository
+	if sqlDB != nil {
+		postRepo = posts.NewRepository(sqlDB)
+	} else {
+		postRepo = posts.NewMemoryRepository()
+	}
 
 	headlineService := headlines.NewService(headlineRepo)
 	articleService := articles.NewService(newsClient, articleRepo)
 	summaryService := summaries.NewService(aiClient, summaryRepo)
 	socialService := social.NewService(socialRepo)
+	postService := posts.NewService(postRepo)
 
 	headlineHandler := headlines.NewHandler(headlineService)
 	articleHandler := articles.NewHandler(articleService)
 	summaryHandler := summaries.NewHandler(summaryService)
 	socialHandler := social.NewHandler(socialService)
+	postHandler := posts.NewHandler(postService)
 
 	aggregator := headlines.NewAggregator(headlineService, articleService, summaryService, socialService)
 
@@ -106,7 +115,27 @@ func NewHTTPServer(cfg *config.Config, postgres *db.Postgres) *HTTPServer {
 		chain(http.HandlerFunc(socialHandler.GetComments), loggingMiddleware, rateLimitMiddleware),
 	)
 
+	mux.Handle("/api/posts",
+		chain(http.HandlerFunc(postHandler.Posts), loggingMiddleware, rateLimitMiddleware),
+	)
+
+	mux.Handle("/api/posts/comments",
+		chain(http.HandlerFunc(postHandler.Comments), loggingMiddleware, rateLimitMiddleware),
+	)
+
+	mux.Handle("/api/posts/votes",
+		chain(http.HandlerFunc(postHandler.Vote), loggingMiddleware, rateLimitMiddleware),
+	)
+
+	mux.Handle("/api/posts/share",
+		chain(http.HandlerFunc(postHandler.Share), loggingMiddleware, rateLimitMiddleware),
+	)
+
 	return &HTTPServer{addr: ":" + cfg.Port, mux: mux}
+}
+
+func (s *HTTPServer) Handler() http.Handler {
+	return s.mux
 }
 
 func (s *HTTPServer) Start() {
