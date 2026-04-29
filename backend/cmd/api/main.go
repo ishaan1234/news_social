@@ -1,13 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/ishaan1234/news_social/backend/internal/config"
-	"github.com/ishaan1234/news_social/backend/internal/db"
+	internaldb "github.com/ishaan1234/news_social/backend/internal/db"
 	"github.com/ishaan1234/news_social/backend/internal/server"
 )
 
@@ -15,22 +16,31 @@ func main() {
 	loadDotEnv()
 	cfg := config.Load()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/news", newsHandler)
-	registerFirebaseEmailPasswordRoutes(mux)
-
-	postgres, err := db.NewPostgres(cfg.DBUrl)
+	var sqlDB *sql.DB
+	postgres, err := internaldb.NewPostgres(cfg.DBUrl)
 	if err != nil {
-		log.Printf("database unavailable; persistent /api routes disabled, posts API using memory: %v", err)
+		log.Printf("database unavailable; database-backed routes may be disabled: %v", err)
 	} else {
 		defer postgres.Close()
+		sqlDB = postgres.DB
 
-		if err := db.RunMigrations(postgres, migrationsDir()); err != nil {
+		if err := internaldb.RunMigrations(postgres, migrationsDir()); err != nil {
 			log.Fatalf("failed to run database migrations: %v", err)
 		}
 
-		log.Println("registered database-backed /api routes")
+		log.Println("registered database-backed routes")
 	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/news", newsHandler(sqlDB))
+	mux.HandleFunc("/posts", createPostHandler(sqlDB))
+	mux.HandleFunc("/following", followingHandler(sqlDB))
+	mux.HandleFunc("/feed", feedHandler(sqlDB))
+	mux.HandleFunc("/post-likes", postLikesHandler(sqlDB))
+	mux.HandleFunc("/post-comments", postCommentsHandler(sqlDB))
+
+	registerFirebaseEmailPasswordRoutes(mux)
 
 	apiServer := server.NewHTTPServer(cfg, postgres)
 	mux.Handle("/api/", apiServer.Handler())
