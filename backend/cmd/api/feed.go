@@ -48,9 +48,13 @@ func feedHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		userEmail, err := normalizeEmail(r.URL.Query().Get("user_email"))
+		userEmail, err := requestUserEmail(r, r.URL.Query().Get("user_email"))
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "valid user_email is required")
+			if hasAuthorizationHeader(r) {
+				writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+			} else {
+				writeJSONError(w, http.StatusBadRequest, "valid user_email is required")
+			}
 			return
 		}
 

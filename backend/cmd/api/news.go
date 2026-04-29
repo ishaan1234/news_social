@@ -192,6 +192,7 @@ type NewsAPIResponse struct {
 }
 
 type Article struct {
+	ID          string `json:"id,omitempty"`
 	Source      Source `json:"source"`
 	Author      string `json:"author"`
 	Title       string `json:"title"`
@@ -208,12 +209,13 @@ type Source struct {
 	Name string `json:"name"`
 }
 
-func saveArticleToDB(db *sql.DB, a Article) error {
+func saveArticleToDB(db *sql.DB, a Article) (string, error) {
 	if db == nil {
-		return nil
+		return "", nil
 	}
 
-	_, err := db.Exec(`
+	var id string
+	err := db.QueryRow(`
 		INSERT INTO articles (
 			title,
 			description,
@@ -237,6 +239,7 @@ func saveArticleToDB(db *sql.DB, a Article) error {
 			source_id = EXCLUDED.source_id,
 			image_url = EXCLUDED.image_url,
 			published_at = EXCLUDED.published_at
+		RETURNING id::text
 	`,
 		a.Title,
 		a.Description,
@@ -248,9 +251,9 @@ func saveArticleToDB(db *sql.DB, a Article) error {
 		a.URL,
 		a.URLToImage,
 		a.PublishedAt,
-	)
+	).Scan(&id)
 
-	return err
+	return id, err
 }
 
 func newsHandler(db *sql.DB) http.HandlerFunc {
@@ -313,8 +316,10 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 			}
 
 			// Save to Supabase/Postgres after summary is ready
-			if err := saveArticleToDB(db, newsResp.Articles[i]); err != nil {
+			if articleID, err := saveArticleToDB(db, newsResp.Articles[i]); err != nil {
 				log.Println("failed to save article:", err)
+			} else if articleID != "" {
+				newsResp.Articles[i].ID = articleID
 			}
 		}
 

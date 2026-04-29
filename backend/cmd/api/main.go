@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ishaan1234/news_social/backend/internal/config"
 	internaldb "github.com/ishaan1234/news_social/backend/internal/db"
@@ -24,8 +25,10 @@ func main() {
 		defer postgres.Close()
 		sqlDB = postgres.DB
 
-		if err := internaldb.RunMigrations(postgres, migrationsDir()); err != nil {
-			log.Fatalf("failed to run database migrations: %v", err)
+		if shouldRunInternalMigrations() {
+			if err := internaldb.RunMigrations(postgres, migrationsDir()); err != nil {
+				log.Fatalf("failed to run database migrations: %v", err)
+			}
 		}
 
 		log.Println("registered database-backed routes")
@@ -48,6 +51,10 @@ func main() {
 	addr := ":" + cfg.Port
 	log.Printf("server listening on http://localhost:%s", cfg.Port)
 	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+func shouldRunInternalMigrations() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("RUN_INTERNAL_MIGRATIONS")), "true")
 }
 
 func migrationsDir() string {

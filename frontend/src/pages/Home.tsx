@@ -4,6 +4,7 @@ import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { savePostArticleDraft } from '../postArticleDraft';
 
 interface BackendArticle {
+  id?: string;
   source?: {
     name?: string;
   };
@@ -72,7 +73,10 @@ const placeholderNews: NewsCardProps[] = [
 ];
 
 const backendQuery = 'tesla';
-const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
+const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(
+  /\/$/,
+  ''
+);
 
 const formatTimeAgo = (publishedAt?: string) => {
   if (!publishedAt) {
@@ -84,7 +88,10 @@ const formatTimeAgo = (publishedAt?: string) => {
     return 'Recently';
   }
 
-  const diffMinutes = Math.max(0, Math.floor((Date.now() - publishedMs) / 60000));
+  const diffMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - publishedMs) / 60000)
+  );
 
   if (diffMinutes < 1) {
     return 'Just now';
@@ -114,6 +121,7 @@ const mapBackendArticle = (article: BackendArticle): NewsCardProps => {
     source: article.source?.name?.trim() || 'Unknown source',
     timeAgo: formatTimeAgo(article.publishedAt),
     articleUrl: article.url?.trim() || 'https://example.com',
+    articleId: article.id?.trim() || undefined,
     imageUrl: article.urlToImage?.trim() || undefined,
   };
 };
@@ -157,7 +165,9 @@ const Home: React.FC = () => {
       }
 
       setArticles([]);
-      setLoadError('Unable to load live news. Showing placeholder stories instead.');
+      setLoadError(
+        'Unable to load live news. Showing placeholder stories instead.'
+      );
     } finally {
       if (!signal?.aborted) {
         setIsLoading(false);
@@ -181,6 +191,7 @@ const Home: React.FC = () => {
   const goPrev = useCallback(() => goTo(current - 1), [current, goTo]);
   const handleCreatePost = useCallback((item: NewsCardProps) => {
     savePostArticleDraft({
+      id: item.articleId,
       url: item.articleUrl,
       title: item.headline,
       source: item.source,
@@ -294,7 +305,11 @@ const Home: React.FC = () => {
         style={{ transform: `translateY(-${current * 100}%)` }}
       >
         {newsItems.map((item, i) => (
-          <div key={i} className="h-full w-full flex-shrink-0" style={{ height: 'calc(100vh - 56px)' }}>
+          <div
+            key={i}
+            className="h-full w-full flex-shrink-0"
+            style={{ height: 'calc(100vh - 56px)' }}
+          >
             <NewsCard {...item} onCreatePost={() => handleCreatePost(item)} />
           </div>
         ))}
@@ -330,8 +345,9 @@ const Home: React.FC = () => {
             onClick={() => goTo(i)}
             aria-label={`Go to article ${i + 1}`}
             data-cy={`news-dot-${i}`}
-            className={`w-2 h-2 rounded-full transition-all ${i === current ? 'bg-blue-600 scale-125' : 'bg-gray-300'
-              }`}
+            className={`w-2 h-2 rounded-full transition-all ${
+              i === current ? 'bg-blue-600 scale-125' : 'bg-gray-300'
+            }`}
           />
         ))}
       </div>

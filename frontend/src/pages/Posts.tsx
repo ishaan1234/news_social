@@ -1,4 +1,10 @@
-import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   ArrowUpOnSquareIcon,
   ChatBubbleLeftRightIcon,
@@ -13,9 +19,16 @@ import {
   clearPostArticleDraft,
   readPostArticleDraft,
 } from '../postArticleDraft';
+import {
+  AuthSession,
+  getSessionDisplayName,
+  getSessionHandle,
+  isVerifiedAuthSession,
+} from '../auth';
 
 interface NewsReference {
   id: string;
+  articleId?: string;
   headline: string;
   source: string;
   category: string;
@@ -27,9 +40,9 @@ interface NewsReference {
 
 interface OpinionPost {
   id: string;
-  backendId?: number;
   author: string;
   handle: string;
+  userEmail?: string;
   postedAt: string;
   body: string;
   newsId: string;
@@ -37,14 +50,12 @@ interface OpinionPost {
   likeCount: number;
   shareCount: number;
   isLiked: boolean;
-  viewerVote?: number;
   commentCount?: number;
   comments: PostComment[];
 }
 
 interface PostComment {
   id: string;
-  backendId?: number;
   author: string;
   body: string;
 }
@@ -53,32 +64,57 @@ interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  feed?: T;
+  post?: T;
+  like?: T;
+  comment?: T;
+  comments?: T;
+  follow?: T;
+  message?: string;
 }
 
 interface BackendPost {
-  id: number;
-  author_name?: string;
-  author_handle?: string;
-  body: string;
-  article: LinkedArticleDraft;
-  vote_score: number;
-  viewer_vote?: number;
+  id: string;
+  user_email: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  caption?: string;
+  created_at: string;
+  like_count: number;
   comment_count: number;
-  share_count: number;
+  liked_by_me: boolean;
+  article: BackendFeedArticle;
+}
+
+interface BackendFeedArticle {
+  id: string;
+  title: string;
+  description?: string;
+  content?: string;
+  summary?: string;
+  author?: string;
+  source_name?: string;
+  source_id?: string;
+  url: string;
+  image_url?: string;
+  published_at?: string;
   created_at: string;
 }
 
 interface BackendPostComment {
-  id: number;
-  post_id: number;
-  author_name?: string;
+  id: string;
+  post_id: string;
+  user_email: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
   content: string;
+  created_at: string;
 }
 
-interface BackendVoteSummary {
-  post_id: number;
-  vote_score: number;
-  viewer_vote: number;
+interface PostsProps {
+  authSession?: AuthSession | null;
 }
 
 const placeholderNews: NewsReference[] = [
@@ -117,8 +153,7 @@ const initialPosts: OpinionPost[] = [
     author: 'Maya Chen',
     handle: '@maya',
     postedAt: '12m ago',
-    body:
-      'Most coverage is treating this like a policy shock, but the bigger story is execution risk. If supply planning lags, the headline impact will outlast the announcement itself.',
+    body: 'Most coverage is treating this like a policy shock, but the bigger story is execution risk. If supply planning lags, the headline impact will outlast the announcement itself.',
     newsId: 'chip-policy',
     likeCount: 14,
     shareCount: 3,
@@ -136,8 +171,7 @@ const initialPosts: OpinionPost[] = [
     author: 'Jordan Lee',
     handle: '@jord',
     postedAt: '28m ago',
-    body:
-      'The debate takeaway is not who had the sharpest line. It is which candidate sounded like they understood household economics in practical terms.',
+    body: 'The debate takeaway is not who had the sharpest line. It is which candidate sounded like they understood household economics in practical terms.',
     newsId: 'election-debate',
     likeCount: 9,
     shareCount: 2,
@@ -152,14 +186,17 @@ const initialPosts: OpinionPost[] = [
   },
 ];
 
-const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
-const viewerStorageKey = 'news-social-post-viewer-id';
+const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(
+  /\/$/,
+  ''
+);
 
 const getStableArticleId = (url: string) =>
   `article-${url.replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 48) || 'linked'}`;
 
 const toNewsReference = (article: LinkedArticleDraft): NewsReference => ({
-  id: getStableArticleId(article.url),
+  id: article.id || getStableArticleId(article.url),
+  articleId: article.id,
   headline: article.title,
   source: article.source || 'Unknown source',
   category: 'News',
@@ -174,24 +211,23 @@ const createLinkedNewsFromDraft = () => {
   return draft ? toNewsReference(draft) : null;
 };
 
-const getViewerId = () => {
-  if (typeof window === 'undefined') {
-    return 'server-render-viewer';
+const authHeaders = (authSession: AuthSession | null) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (authSession?.idToken) {
+    headers.Authorization = `Bearer ${authSession.idToken}`;
   }
 
-  const existingId = window.localStorage.getItem(viewerStorageKey);
-  if (existingId) {
-    return existingId;
-  }
-
-  const nextId = `viewer-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
-  window.localStorage.setItem(viewerStorageKey, nextId);
-  return nextId;
+  return headers;
 };
 
-const readApiData = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+const readApiData = async <T,>(
+  path: string,
+  payloadKey: keyof ApiResponse<T>,
+  init?: RequestInit
+): Promise<T> => {
   const response = await fetch(`${apiBaseUrl}${path}`, init);
   const body = (await response.json().catch(() => null)) as
     | ApiResponse<T>
@@ -211,7 +247,7 @@ const readApiData = async <T,>(path: string, init?: RequestInit): Promise<T> => 
     if (!apiBody.success) {
       throw new Error(apiBody.error || 'request failed');
     }
-    return apiBody.data as T;
+    return (apiBody[payloadKey] ?? apiBody.data) as T;
   }
 
   return body as T;
@@ -244,23 +280,54 @@ const formatPostTime = (createdAt?: string) => {
 };
 
 const mapBackendPost = (post: BackendPost): OpinionPost => {
-  const linkedNews = toNewsReference(post.article);
+  const linkedNews = toNewsReference({
+    id: post.article.id,
+    url: post.article.url,
+    title: post.article.title,
+    source: post.article.source_name || 'Unknown source',
+    summary:
+      post.article.summary ||
+      post.article.description ||
+      'Summary unavailable.',
+    image_url: post.article.image_url,
+    published_at: post.article.published_at,
+  });
+  const authorName = post.display_name || post.username || post.user_email;
+  const handle = post.username
+    ? `@${post.username.replace(/^@+/, '')}`
+    : `@${post.user_email.split('@')[0] || 'newshub'}`;
 
   return {
-    id: `api-post-${post.id}`,
-    backendId: post.id,
-    author: post.author_name || 'Anonymous',
-    handle: post.author_handle || '@newshub',
+    id: post.id,
+    author: authorName,
+    handle,
+    userEmail: post.user_email,
     postedAt: formatPostTime(post.created_at),
-    body: post.body,
+    body: post.caption || '',
     newsId: linkedNews.id,
     linkedNews,
-    likeCount: post.vote_score,
-    shareCount: post.share_count,
-    isLiked: (post.viewer_vote || 0) > 0,
-    viewerVote: post.viewer_vote || 0,
+    likeCount: post.like_count,
+    shareCount: 0,
+    isLiked: post.liked_by_me,
     commentCount: post.comment_count,
     comments: [],
+  };
+};
+
+const mapBackendComment = (
+  comment: BackendPostComment,
+  fallbackAuthor = ''
+): PostComment => {
+  const authorName =
+    comment.display_name ||
+    comment.username ||
+    fallbackAuthor ||
+    comment.user_email;
+
+  return {
+    id: comment.id,
+    author: authorName,
+    body: comment.content,
   };
 };
 
@@ -270,8 +337,7 @@ const createPostId = () =>
 const createCommentId = () =>
   `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-const Posts: React.FC = () => {
-  const [viewerId] = useState(getViewerId);
+const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
   const [linkedNews] = useState<NewsReference | null>(() =>
     createLinkedNewsFromDraft()
   );
@@ -281,7 +347,14 @@ const Posts: React.FC = () => {
     () => linkedNews?.id || placeholderNews[0].id
   );
   const [followedHandles, setFollowedHandles] = useState<string[]>(['@maya']);
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
+    {}
+  );
+  const hasVerifiedSession = isVerifiedAuthSession(authSession);
+  const sessionEmail = authSession?.user?.email?.trim().toLowerCase() || '';
+  const canUseSupabase = hasVerifiedSession && Boolean(sessionEmail);
+  const currentAuthorName = getSessionDisplayName(authSession, 'You');
+  const currentHandle = getSessionHandle(authSession, '@you');
   const availableNews = useMemo(
     () => (linkedNews ? [linkedNews, ...placeholderNews] : placeholderNews),
     [linkedNews]
@@ -295,18 +368,50 @@ const Posts: React.FC = () => {
   );
 
   const loadPosts = useCallback(async () => {
+    if (!canUseSupabase) {
+      setPosts(initialPosts);
+      return;
+    }
+
     try {
       const backendPosts = await readApiData<BackendPost[]>(
-        `/api/posts?viewer_id=${encodeURIComponent(viewerId)}`
+        `/feed?user_email=${encodeURIComponent(sessionEmail)}`,
+        'feed',
+        { headers: authHeaders(authSession) }
       );
 
       if (Array.isArray(backendPosts)) {
-        setPosts(backendPosts.map(mapBackendPost));
+        const mappedPosts = backendPosts.map(mapBackendPost);
+        const hydratedPosts = await Promise.all(
+          mappedPosts.map(async (post) => {
+            try {
+              const comments = await readApiData<BackendPostComment[]>(
+                `/post-comments?post_id=${encodeURIComponent(post.id)}`,
+                'comments',
+                { headers: authHeaders(authSession) }
+              );
+
+              return {
+                ...post,
+                comments: Array.isArray(comments)
+                  ? comments.map((comment) => mapBackendComment(comment))
+                  : post.comments,
+                commentCount: Array.isArray(comments)
+                  ? comments.length
+                  : post.commentCount,
+              };
+            } catch (_error) {
+              return post;
+            }
+          })
+        );
+
+        setPosts(hydratedPosts);
       }
     } catch (_error) {
-      // Keep the local starter posts when the database-backed API is unavailable.
+      // Keep the local starter posts when the Supabase-backed API is unavailable.
     }
-  }, [viewerId]);
+  }, [authSession, canUseSupabase, sessionEmail]);
 
   useEffect(() => {
     void loadPosts();
@@ -320,10 +425,38 @@ const Posts: React.FC = () => {
       return;
     }
 
-    let nextPost: OpinionPost = {
+    if (canUseSupabase && selectedNews.articleId) {
+      try {
+        await readApiData<{
+          id: string;
+          user_email: string;
+          article_id: string;
+          caption?: string;
+          created_at: string;
+        }>('/posts', 'post', {
+          method: 'POST',
+          headers: authHeaders(authSession),
+          body: JSON.stringify({
+            user_email: sessionEmail,
+            article_id: selectedNews.articleId,
+            caption: trimmedDraft,
+          }),
+        });
+
+        await loadPosts();
+        setDraft('');
+        clearPostArticleDraft();
+        return;
+      } catch (_error) {
+        // Local fallback keeps the composer usable if Supabase rejects the post.
+      }
+    }
+
+    const nextPost: OpinionPost = {
       id: createPostId(),
-      author: 'You',
-      handle: '@you',
+      author: currentAuthorName,
+      handle: currentHandle,
+      userEmail: sessionEmail || undefined,
       postedAt: 'Just now',
       body: trimmedDraft,
       newsId: selectedNews.id,
@@ -333,32 +466,6 @@ const Posts: React.FC = () => {
       isLiked: false,
       comments: [],
     };
-
-    try {
-      const createdPost = await readApiData<BackendPost>('/api/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          author_id: viewerId,
-          author_name: 'You',
-          author_handle: '@you',
-          body: trimmedDraft,
-          article: {
-            url: selectedNews.articleUrl,
-            title: selectedNews.headline,
-            source: selectedNews.source,
-            summary: selectedNews.summary,
-            image_url: selectedNews.imageUrl,
-            published_at: selectedNews.publishedAt,
-          },
-        }),
-      });
-      nextPost = mapBackendPost(createdPost);
-    } catch (_error) {
-      // Local fallback keeps the composer usable without a configured database.
-    }
 
     setPosts((previousPosts) => [nextPost, ...previousPosts]);
     setDraft('');
@@ -372,7 +479,6 @@ const Posts: React.FC = () => {
     }
 
     const nextLiked = !targetPost.isLiked;
-    const nextVote = nextLiked ? 1 : 0;
 
     setPosts((previousPosts) =>
       previousPosts.map((post) => {
@@ -383,87 +489,80 @@ const Posts: React.FC = () => {
         return {
           ...post,
           isLiked: nextLiked,
-          viewerVote: nextVote,
-          likeCount: post.likeCount + (nextLiked ? 1 : -1),
+          likeCount: Math.max(0, post.likeCount + (nextLiked ? 1 : -1)),
         };
       })
     );
 
-    if (!targetPost.backendId) {
+    if (!canUseSupabase || !targetPost.userEmail) {
       return;
     }
 
-    void readApiData<BackendVoteSummary>('/api/posts/votes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    void readApiData<unknown>('/post-likes', nextLiked ? 'like' : 'data', {
+      method: nextLiked ? 'POST' : 'DELETE',
+      headers: authHeaders(authSession),
       body: JSON.stringify({
-        post_id: targetPost.backendId,
-        voter_id: viewerId,
-        value: nextVote,
+        user_email: sessionEmail,
+        post_id: targetPost.id,
       }),
-    })
-      .then((summary) => {
-        setPosts((previousPosts) =>
-          previousPosts.map((post) =>
-            post.id === postId
-              ? {
+    }).catch(() => {
+      setPosts((previousPosts) =>
+        previousPosts.map((post) =>
+          post.id === postId
+            ? {
                 ...post,
-                isLiked: summary.viewer_vote > 0,
-                viewerVote: summary.viewer_vote,
-                likeCount: summary.vote_score,
+                isLiked: targetPost.isLiked,
+                likeCount: targetPost.likeCount,
               }
-              : post
-          )
-        );
-      })
-      .catch(() => undefined);
+            : post
+        )
+      );
+    });
   };
 
   const sharePost = (postId: string) => {
-    const targetPost = posts.find((post) => post.id === postId);
-
     setPosts((previousPosts) =>
       previousPosts.map((post) =>
-        post.id === postId
-          ? { ...post, shareCount: post.shareCount + 1 }
-          : post
+        post.id === postId ? { ...post, shareCount: post.shareCount + 1 } : post
       )
     );
+  };
 
-    if (!targetPost?.backendId) {
+  const toggleFollow = (post: OpinionPost) => {
+    const isCurrentlyFollowing = followedHandles.includes(post.handle);
+
+    setFollowedHandles((previousHandles) =>
+      isCurrentlyFollowing
+        ? previousHandles.filter(
+            (currentHandle) => currentHandle !== post.handle
+          )
+        : [...previousHandles, post.handle]
+    );
+
+    if (!canUseSupabase || !post.userEmail || post.userEmail === sessionEmail) {
       return;
     }
 
-    void readApiData<{ post_id: number; share_count: number }>(
-      '/api/posts/share',
+    void readApiData<unknown>(
+      '/following',
+      isCurrentlyFollowing ? 'data' : 'follow',
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ post_id: targetPost.backendId }),
+        method: isCurrentlyFollowing ? 'DELETE' : 'POST',
+        headers: authHeaders(authSession),
+        body: JSON.stringify({
+          follower_email: sessionEmail,
+          following_email: post.userEmail,
+        }),
       }
-    )
-      .then((result) => {
-        setPosts((previousPosts) =>
-          previousPosts.map((post) =>
-            post.id === postId
-              ? { ...post, shareCount: result.share_count }
-              : post
-          )
-        );
-      })
-      .catch(() => undefined);
-  };
-
-  const toggleFollow = (handle: string) => {
-    setFollowedHandles((previousHandles) =>
-      previousHandles.includes(handle)
-        ? previousHandles.filter((currentHandle) => currentHandle !== handle)
-        : [...previousHandles, handle]
-    );
+    ).catch(() => {
+      setFollowedHandles((previousHandles) =>
+        isCurrentlyFollowing
+          ? [...previousHandles, post.handle]
+          : previousHandles.filter(
+              (currentHandle) => currentHandle !== post.handle
+            )
+      );
+    });
   };
 
   const addComment = (postId: string) => {
@@ -475,7 +574,7 @@ const Posts: React.FC = () => {
     const targetPost = posts.find((post) => post.id === postId);
     const nextComment: PostComment = {
       id: createCommentId(),
-      author: 'You',
+      author: currentAuthorName,
       body: trimmedComment,
     };
 
@@ -483,13 +582,10 @@ const Posts: React.FC = () => {
       previousPosts.map((post) =>
         post.id === postId
           ? {
-            ...post,
-            comments: [
-              ...post.comments,
-              nextComment,
-            ],
-            commentCount: (post.commentCount ?? post.comments.length) + 1,
-          }
+              ...post,
+              comments: [...post.comments, nextComment],
+              commentCount: (post.commentCount ?? post.comments.length) + 1,
+            }
           : post
       )
     );
@@ -499,29 +595,42 @@ const Posts: React.FC = () => {
       [postId]: '',
     }));
 
-    if (!targetPost?.backendId) {
+    if (!canUseSupabase || !targetPost?.userEmail) {
       return;
     }
 
-    void readApiData<BackendPostComment>('/api/posts/comments', {
+    void readApiData<BackendPostComment>('/post-comments', 'comment', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: authHeaders(authSession),
       body: JSON.stringify({
-        post_id: targetPost.backendId,
-        author_id: viewerId,
-        author_name: 'You',
+        post_id: targetPost.id,
+        user_email: sessionEmail,
         content: trimmedComment,
       }),
-    }).catch(() => undefined);
+    })
+      .then((createdComment) => {
+        const persistedComment = mapBackendComment(
+          createdComment,
+          currentAuthorName
+        );
+        setPosts((previousPosts) =>
+          previousPosts.map((post) =>
+            post.id === postId
+              ? {
+                  ...post,
+                  comments: post.comments.map((comment) =>
+                    comment.id === nextComment.id ? persistedComment : comment
+                  ),
+                }
+              : post
+          )
+        );
+      })
+      .catch(() => undefined);
   };
 
   return (
-    <main
-      data-cy="posts-page"
-      className="mx-auto max-w-6xl px-4 py-6 sm:px-6"
-    >
+    <main data-cy="posts-page" className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       {/* <section className="rounded-[32px] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 px-6 py-8 text-white shadow-sm sm:px-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
@@ -567,10 +676,11 @@ const Posts: React.FC = () => {
                     key={newsItem.id}
                     type="button"
                     onClick={() => setSelectedNewsId(newsItem.id)}
-                    className={`w-full rounded-3xl border px-4 py-4 text-left transition ${isSelected
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
+                    className={`w-full rounded-3xl border px-4 py-4 text-left transition ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
                   >
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                       {newsItem.category} | {newsItem.source}
@@ -646,7 +756,11 @@ const Posts: React.FC = () => {
 
             <div className="mt-5 flex items-center justify-between gap-4">
               <p className="text-xs text-slate-400">
-                Frontend demo only. Nothing is persisted to a server.
+                {canUseSupabase
+                  ? selectedNews.articleId
+                    ? `Posting as ${currentHandle}. This will save to Supabase.`
+                    : 'This story needs a saved Supabase article id before it can persist.'
+                  : 'Sign in with a verified account to save posts to Supabase.'}
               </p>
               <button
                 type="submit"
@@ -666,6 +780,9 @@ const Posts: React.FC = () => {
                 availableNews.find((newsItem) => newsItem.id === post.newsId) ??
                 availableNews[0];
               const isFollowing = followedHandles.includes(post.handle);
+              const isOwnPost = Boolean(
+                sessionEmail && post.userEmail === sessionEmail
+              );
               const displayedCommentCount =
                 post.commentCount ?? post.comments.length;
 
@@ -685,23 +802,25 @@ const Posts: React.FC = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        data-cy={`follow-${post.id}`}
-                        onClick={() => toggleFollow(post.handle)}
-                        className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                          isFollowing
-                            ? 'bg-slate-900 text-white hover:bg-slate-800'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {isFollowing ? (
-                          <UserMinusIcon className="h-4 w-4" />
-                        ) : (
-                          <UserPlusIcon className="h-4 w-4" />
-                        )}
-                        {isFollowing ? 'Following' : 'Follow'}
-                      </button>
+                      {!isOwnPost && (
+                        <button
+                          type="button"
+                          data-cy={`follow-${post.id}`}
+                          onClick={() => toggleFollow(post)}
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+                            isFollowing
+                              ? 'bg-slate-900 text-white hover:bg-slate-800'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {isFollowing ? (
+                            <UserMinusIcon className="h-4 w-4" />
+                          ) : (
+                            <UserPlusIcon className="h-4 w-4" />
+                          )}
+                          {isFollowing ? 'Following' : 'Follow'}
+                        </button>
+                      )}
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Opinion
                       </span>

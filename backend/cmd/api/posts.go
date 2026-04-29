@@ -46,9 +46,13 @@ func createPostHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		userEmail, err := normalizeEmail(req.UserEmail)
+		userEmail, err := requestUserEmail(r, req.UserEmail)
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
+			if hasAuthorizationHeader(r) {
+				writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+			} else {
+				writeJSONError(w, http.StatusBadRequest, err.Error())
+			}
 			return
 		}
 

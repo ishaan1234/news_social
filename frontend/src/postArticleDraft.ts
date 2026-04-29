@@ -1,4 +1,5 @@
 export interface LinkedArticleDraft {
+  id?: string;
   url: string;
   title: string;
   source: string;

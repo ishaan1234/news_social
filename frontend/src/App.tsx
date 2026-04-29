@@ -41,7 +41,9 @@ const getCurrentRoute = (): AppRoute => {
     : window.location.pathname || '/';
   const routeOnly = candidate.split('?')[0] || '/';
 
-  return validRouteSet.has(routeOnly as AppRoute) ? (routeOnly as AppRoute) : '/';
+  return validRouteSet.has(routeOnly as AppRoute)
+    ? (routeOnly as AppRoute)
+    : '/';
 };
 
 const renderRoute = (
@@ -54,7 +56,7 @@ const renderRoute = (
     case '/chat':
       return <Chat />;
     case '/posts':
-      return <Posts />;
+      return <Posts authSession={authSession} />;
     case '/profile':
       return <Profile authSession={authSession} />;
     case '/auth':
@@ -111,12 +113,7 @@ function App() {
         authSession={authSession}
         onSignOut={handleSignOut}
       />
-      {renderRoute(
-        currentRoute,
-        authSession,
-        handleAuthSuccess,
-        handleSignOut
-      )}
+      {renderRoute(currentRoute, authSession, handleAuthSuccess, handleSignOut)}
     </div>
   );
 }

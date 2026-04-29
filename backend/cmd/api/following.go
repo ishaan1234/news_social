@@ -110,9 +110,13 @@ func decodeFollowRequest(w http.ResponseWriter, r *http.Request) (followRequest,
 		return followRequest{}, false
 	}
 
-	followerEmail, err := normalizeEmail(req.FollowerEmail)
+	followerEmail, err := requestUserEmail(r, req.FollowerEmail)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "valid follower_email is required")
+		if hasAuthorizationHeader(r) {
+			writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+		} else {
+			writeJSONError(w, http.StatusBadRequest, "valid follower_email is required")
+		}
 		return followRequest{}, false
 	}
 
