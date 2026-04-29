@@ -3,16 +3,19 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
+	"github.com/lib/pq"
 )
 
 const firebaseIdentityToolkitBaseURL = "https://identitytoolkit.googleapis.com/v1"
@@ -45,7 +48,9 @@ type firebaseIdentityErrorResponse struct {
 type signupRequest struct {
 	Email       string `json:"email"`
 	Password    string `json:"password"`
+	Username    string `json:"username,omitempty"`
 	DisplayName string `json:"display_name,omitempty"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
 }
 
 type loginRequest struct {
@@ -70,7 +75,9 @@ type authSuccessResponse struct {
 type firebaseIdentityUserPayload struct {
 	UID           string `json:"uid"`
 	Email         string `json:"email"`
+	Username      string `json:"username,omitempty"`
 	DisplayName   string `json:"display_name,omitempty"`
+	AvatarURL     string `json:"avatar_url,omitempty"`
 	EmailVerified bool   `json:"email_verified,omitempty"`
 }
 
@@ -105,6 +112,8 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	displayName := strings.TrimSpace(req.DisplayName)
+	avatarURL := strings.TrimSpace(req.AvatarURL)
+	username := normalizeUsername(req.Username)
 
 	client, err := newFirebaseIdentityClient()
 	if err != nil {
@@ -116,7 +125,7 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case strings.Contains(err.Error(), "EMAIL_EXISTS"):
-			handleExistingEmailDuringSignup(w, r, client, email, password)
+			handleExistingEmailDuringSignup(w, r, client, email, password, username, displayName, avatarURL)
 			return
 		case strings.Contains(err.Error(), "WEAK_PASSWORD"):
 			writeJSONError(w, http.StatusBadRequest, err.Error())
@@ -134,6 +143,17 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	username = usernameOrDefault(username, email, authResp.LocalID)
+	if err := saveSignupUserToSupabase(r.Context(), signupUser{
+		Email:       email,
+		Username:    username,
+		DisplayName: displayName,
+		AvatarURL:   avatarURL,
+	}, false); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "account created, but failed to save user details: "+err.Error())
+		return
+	}
+
 	if _, err := client.sendEmailVerification(r.Context(), authResp.IDToken); err != nil {
 		writeJSONError(w, http.StatusBadGateway, "account created, but failed to send verification email: "+err.Error())
 		return
@@ -149,7 +169,9 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 		User: &firebaseIdentityUserPayload{
 			UID:           authResp.LocalID,
 			Email:         authResp.Email,
+			Username:      username,
 			DisplayName:   authResp.DisplayName,
+			AvatarURL:     avatarURL,
 			EmailVerified: false,
 		},
 	})
@@ -161,6 +183,9 @@ func handleExistingEmailDuringSignup(
 	client *firebaseIdentityClient,
 	email string,
 	password string,
+	username string,
+	displayName string,
+	avatarURL string,
 ) {
 	ctx := r.Context()
 
@@ -192,6 +217,20 @@ func handleExistingEmailDuringSignup(
 		return
 	}
 
+	username = usernameOrDefault(username, email, u.UID)
+	if displayName == "" {
+		displayName = strings.TrimSpace(u.DisplayName)
+	}
+	if err := saveSignupUserToSupabase(ctx, signupUser{
+		Email:       email,
+		Username:    username,
+		DisplayName: displayName,
+		AvatarURL:   avatarURL,
+	}, false); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "verification email sent, but failed to save user details: "+err.Error())
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(authSuccessResponse{
 		Success:      true,
@@ -202,7 +241,9 @@ func handleExistingEmailDuringSignup(
 		User: &firebaseIdentityUserPayload{
 			UID:           u.UID,
 			Email:         u.Email,
+			Username:      username,
 			DisplayName:   u.DisplayName,
+			AvatarURL:     avatarURL,
 			EmailVerified: false,
 		},
 	})
@@ -490,4 +531,110 @@ func normalizeEmail(value string) (string, error) {
 	}
 
 	return email, nil
+}
+
+type signupUser struct {
+	Email       string
+	Username    string
+	DisplayName string
+	AvatarURL   string
+}
+
+func saveSignupUserToSupabase(ctx context.Context, user signupUser, retriedUsername bool) error {
+	dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if dbURL == "" {
+		return nil
+	}
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("connect database: %w", err)
+	}
+
+	if err := ensureSupabaseUsersTable(ctx, db); err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO users (email, username, display_name, avatar_url)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''))
+		ON CONFLICT (email) DO UPDATE
+		SET username = EXCLUDED.username,
+		    display_name = EXCLUDED.display_name,
+		    avatar_url = EXCLUDED.avatar_url
+	`, user.Email, user.Username, user.DisplayName, user.AvatarURL)
+	if err == nil {
+		return nil
+	}
+
+	if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" && !retriedUsername {
+		user.Username = usernameOrDefault("", user.Email, time.Now().Format("150405"))
+		return saveSignupUserToSupabase(ctx, user, true)
+	}
+
+	return fmt.Errorf("save user: %w", err)
+}
+
+func ensureSupabaseUsersTable(ctx context.Context, db *sql.DB) error {
+	_, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS users (
+			email TEXT PRIMARY KEY,
+			username TEXT UNIQUE,
+			display_name TEXT,
+			avatar_url TEXT,
+			created_at TIMESTAMP DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("ensure users table: %w", err)
+	}
+	return nil
+}
+
+func normalizeUsername(value string) string {
+	username := strings.ToLower(strings.TrimSpace(value))
+	username = regexp.MustCompile(`[^a-z0-9_]+`).ReplaceAllString(username, "_")
+	username = strings.Trim(username, "_")
+	if len(username) > 30 {
+		username = username[:30]
+	}
+	return username
+}
+
+func usernameOrDefault(username, email, suffix string) string {
+	if username != "" {
+		return username
+	}
+
+	base := strings.Split(email, "@")[0]
+	base = normalizeUsername(base)
+	if base == "" {
+		base = "user"
+	}
+
+	suffix = normalizeUsername(suffix)
+	if len(suffix) > 8 {
+		suffix = suffix[:8]
+	}
+	if suffix == "" {
+		return base
+	}
+
+	maxBaseLength := 30 - len(suffix) - 1
+	if maxBaseLength < 1 {
+		maxBaseLength = 1
+	}
+	if len(base) > maxBaseLength {
+		base = base[:maxBaseLength]
+	}
+
+	return base + "_" + suffix
 }

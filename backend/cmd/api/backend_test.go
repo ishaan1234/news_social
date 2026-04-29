@@ -262,7 +262,7 @@ func TestNewsHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/news?q=tesla", nil)
 	rr := httptest.NewRecorder()
 
-	newsHandler(rr, req)
+	newsHandler(nil)(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
