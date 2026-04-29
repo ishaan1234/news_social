@@ -8,6 +8,7 @@ export interface NewsCardProps {
   timeAgo: string;
   articleUrl: string;
   imageUrl?: string;
+  onCreatePost?: () => void;
 }
 
 const categoryColors: Record<string, string> = {
@@ -28,6 +29,7 @@ const NewsCard: React.FC<NewsCardProps> = ({
   timeAgo,
   articleUrl,
   imageUrl,
+  onCreatePost,
 }) => {
   const badge = categoryColors[category] || 'bg-gray-100 text-gray-700';
 
@@ -55,18 +57,30 @@ const NewsCard: React.FC<NewsCardProps> = ({
         <p className="mt-4 text-base sm:text-lg text-gray-600 leading-relaxed">
           {summary}
         </p>
-        <div className="mt-6 flex items-center justify-between">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-400">
             {source} &middot; {timeAgo}
           </p>
-          <a
-            href={articleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            View full article &rarr;
-          </a>
+          <div className="flex flex-wrap items-center gap-3">
+            {onCreatePost && (
+              <button
+                type="button"
+                onClick={onCreatePost}
+                data-cy="make-post"
+                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+              >
+                Make post
+              </button>
+            )}
+            <a
+              href={articleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              View full article &rarr;
+            </a>
+          </div>
         </div>
       </div>
     </div>

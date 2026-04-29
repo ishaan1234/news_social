@@ -83,7 +83,7 @@ test('renders the settings interface on the settings route', () => {
 
   expect(screen.getByRole('heading', { name: /settings/i })).toBeInTheDocument();
   expect(
-    screen.getByRole('button', { name: /save changes/i })
+    screen.getByRole('heading', { name: /home feed and summaries/i })
   ).toBeInTheDocument();
   expect(screen.getByText(/notification preferences/i)).toBeInTheDocument();
 });

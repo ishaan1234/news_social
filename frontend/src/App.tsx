@@ -39,8 +39,9 @@ const getCurrentRoute = (): AppRoute => {
   const candidate = window.location.hash
     ? window.location.hash.replace(/^#/, '') || '/'
     : window.location.pathname || '/';
+  const routeOnly = candidate.split('?')[0] || '/';
 
-  return validRouteSet.has(candidate as AppRoute) ? (candidate as AppRoute) : '/';
+  return validRouteSet.has(routeOnly as AppRoute) ? (routeOnly as AppRoute) : '/';
 };
 
 const renderRoute = (
