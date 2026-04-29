@@ -21,4 +21,12 @@ module.exports = function setupProxy(app) {
       changeOrigin: true,
     })
   );
+
+  app.use(
+    '/api',
+    createProxyMiddleware({
+      target: proxyTarget,
+      changeOrigin: true,
+    })
+  );
 };

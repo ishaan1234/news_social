@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NewsCard, { NewsCardProps } from '../components/NewsCard';
 import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { savePostArticleDraft } from '../postArticleDraft';
 
 interface BackendArticle {
   source?: {
@@ -178,6 +179,19 @@ const Home: React.FC = () => {
 
   const goNext = useCallback(() => goTo(current + 1), [current, goTo]);
   const goPrev = useCallback(() => goTo(current - 1), [current, goTo]);
+  const handleCreatePost = useCallback((item: NewsCardProps) => {
+    savePostArticleDraft({
+      url: item.articleUrl,
+      title: item.headline,
+      source: item.source,
+      summary: item.summary,
+      image_url: item.imageUrl,
+    });
+
+    if (typeof window !== 'undefined') {
+      window.location.hash = '#/posts?compose=1';
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -281,7 +295,7 @@ const Home: React.FC = () => {
       >
         {newsItems.map((item, i) => (
           <div key={i} className="h-full w-full flex-shrink-0" style={{ height: 'calc(100vh - 56px)' }}>
-            <NewsCard {...item} />
+            <NewsCard {...item} onCreatePost={() => handleCreatePost(item)} />
           </div>
         ))}
       </div>

@@ -1,4 +1,4 @@
-import React, { FormEvent, useMemo, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpOnSquareIcon,
   ChatBubbleLeftRightIcon,
@@ -8,6 +8,11 @@ import {
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import {
+  LinkedArticleDraft,
+  clearPostArticleDraft,
+  readPostArticleDraft,
+} from '../postArticleDraft';
 
 interface NewsReference {
   id: string;
@@ -15,25 +20,65 @@ interface NewsReference {
   source: string;
   category: string;
   summary: string;
+  articleUrl: string;
+  imageUrl?: string;
+  publishedAt?: string;
 }
 
 interface OpinionPost {
   id: string;
+  backendId?: number;
   author: string;
   handle: string;
   postedAt: string;
   body: string;
   newsId: string;
+  linkedNews?: NewsReference;
   likeCount: number;
   shareCount: number;
   isLiked: boolean;
+  viewerVote?: number;
+  commentCount?: number;
   comments: PostComment[];
 }
 
 interface PostComment {
   id: string;
+  backendId?: number;
   author: string;
   body: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+interface BackendPost {
+  id: number;
+  author_name?: string;
+  author_handle?: string;
+  body: string;
+  article: LinkedArticleDraft;
+  vote_score: number;
+  viewer_vote?: number;
+  comment_count: number;
+  share_count: number;
+  created_at: string;
+}
+
+interface BackendPostComment {
+  id: number;
+  post_id: number;
+  author_name?: string;
+  content: string;
+}
+
+interface BackendVoteSummary {
+  post_id: number;
+  vote_score: number;
+  viewer_vote: number;
 }
 
 const placeholderNews: NewsReference[] = [
@@ -44,6 +89,7 @@ const placeholderNews: NewsReference[] = [
     category: 'Technology',
     summary:
       'Regulators are tightening export restrictions on advanced chips while cloud and AI spending remains elevated. Companies now need to balance compliance risk, supply chain planning, and investor pressure around long-term growth.',
+    articleUrl: 'https://example.com/chip-policy',
   },
   {
     id: 'election-debate',
@@ -52,6 +98,7 @@ const placeholderNews: NewsReference[] = [
     category: 'Politics',
     summary:
       'The latest debate centered on inflation, wages, and public trust in economic leadership. Analysts say the exchange may matter less for headline moments and more for how undecided voters judge competence and stability.',
+    articleUrl: 'https://example.com/election-debate',
   },
   {
     id: 'ev-market',
@@ -60,6 +107,7 @@ const placeholderNews: NewsReference[] = [
     category: 'Business',
     summary:
       'Electric vehicle companies are expanding capacity and retail presence even as competition pushes margins lower. The main question is whether volume growth can offset price pressure quickly enough to preserve investor confidence.',
+    articleUrl: 'https://example.com/ev-market',
   },
 ];
 
@@ -104,6 +152,118 @@ const initialPosts: OpinionPost[] = [
   },
 ];
 
+const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
+const viewerStorageKey = 'news-social-post-viewer-id';
+
+const getStableArticleId = (url: string) =>
+  `article-${url.replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 48) || 'linked'}`;
+
+const toNewsReference = (article: LinkedArticleDraft): NewsReference => ({
+  id: getStableArticleId(article.url),
+  headline: article.title,
+  source: article.source || 'Unknown source',
+  category: 'News',
+  summary: article.summary || 'Summary unavailable.',
+  articleUrl: article.url,
+  imageUrl: article.image_url,
+  publishedAt: article.published_at,
+});
+
+const createLinkedNewsFromDraft = () => {
+  const draft = readPostArticleDraft();
+  return draft ? toNewsReference(draft) : null;
+};
+
+const getViewerId = () => {
+  if (typeof window === 'undefined') {
+    return 'server-render-viewer';
+  }
+
+  const existingId = window.localStorage.getItem(viewerStorageKey);
+  if (existingId) {
+    return existingId;
+  }
+
+  const nextId = `viewer-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  window.localStorage.setItem(viewerStorageKey, nextId);
+  return nextId;
+};
+
+const readApiData = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+  const response = await fetch(`${apiBaseUrl}${path}`, init);
+  const body = (await response.json().catch(() => null)) as
+    | ApiResponse<T>
+    | T
+    | null;
+
+  if (!response.ok) {
+    const errorMessage =
+      body && typeof body === 'object' && 'error' in body
+        ? String((body as ApiResponse<T>).error)
+        : `request failed with status ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  if (body && typeof body === 'object' && 'success' in body) {
+    const apiBody = body as ApiResponse<T>;
+    if (!apiBody.success) {
+      throw new Error(apiBody.error || 'request failed');
+    }
+    return apiBody.data as T;
+  }
+
+  return body as T;
+};
+
+const formatPostTime = (createdAt?: string) => {
+  if (!createdAt) {
+    return 'Just now';
+  }
+
+  const createdMs = new Date(createdAt).getTime();
+  if (Number.isNaN(createdMs)) {
+    return 'Recently';
+  }
+
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - createdMs) / 60000));
+  if (diffMinutes < 1) {
+    return 'Just now';
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+
+  return `${Math.floor(diffHours / 24)}d ago`;
+};
+
+const mapBackendPost = (post: BackendPost): OpinionPost => {
+  const linkedNews = toNewsReference(post.article);
+
+  return {
+    id: `api-post-${post.id}`,
+    backendId: post.id,
+    author: post.author_name || 'Anonymous',
+    handle: post.author_handle || '@newshub',
+    postedAt: formatPostTime(post.created_at),
+    body: post.body,
+    newsId: linkedNews.id,
+    linkedNews,
+    likeCount: post.vote_score,
+    shareCount: post.share_count,
+    isLiked: (post.viewer_vote || 0) > 0,
+    viewerVote: post.viewer_vote || 0,
+    commentCount: post.comment_count,
+    comments: [],
+  };
+};
+
 const createPostId = () =>
   `post-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -111,20 +271,48 @@ const createCommentId = () =>
   `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const Posts: React.FC = () => {
+  const [viewerId] = useState(getViewerId);
+  const [linkedNews] = useState<NewsReference | null>(() =>
+    createLinkedNewsFromDraft()
+  );
   const [posts, setPosts] = useState<OpinionPost[]>(initialPosts);
   const [draft, setDraft] = useState('');
-  const [selectedNewsId, setSelectedNewsId] = useState(placeholderNews[0].id);
+  const [selectedNewsId, setSelectedNewsId] = useState(
+    () => linkedNews?.id || placeholderNews[0].id
+  );
   const [followedHandles, setFollowedHandles] = useState<string[]>(['@maya']);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const availableNews = useMemo(
+    () => (linkedNews ? [linkedNews, ...placeholderNews] : placeholderNews),
+    [linkedNews]
+  );
 
   const selectedNews = useMemo(
     () =>
-      placeholderNews.find((item) => item.id === selectedNewsId) ??
-      placeholderNews[0],
-    [selectedNewsId]
+      availableNews.find((item) => item.id === selectedNewsId) ??
+      availableNews[0],
+    [availableNews, selectedNewsId]
   );
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const loadPosts = useCallback(async () => {
+    try {
+      const backendPosts = await readApiData<BackendPost[]>(
+        `/api/posts?viewer_id=${encodeURIComponent(viewerId)}`
+      );
+
+      if (Array.isArray(backendPosts)) {
+        setPosts(backendPosts.map(mapBackendPost));
+      }
+    } catch (_error) {
+      // Keep the local starter posts when the database-backed API is unavailable.
+    }
+  }, [viewerId]);
+
+  useEffect(() => {
+    void loadPosts();
+  }, [loadPosts]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const trimmedDraft = draft.trim();
@@ -132,41 +320,110 @@ const Posts: React.FC = () => {
       return;
     }
 
-    const nextPost: OpinionPost = {
+    let nextPost: OpinionPost = {
       id: createPostId(),
       author: 'You',
       handle: '@you',
       postedAt: 'Just now',
       body: trimmedDraft,
       newsId: selectedNews.id,
+      linkedNews: selectedNews,
       likeCount: 0,
       shareCount: 0,
       isLiked: false,
       comments: [],
     };
 
+    try {
+      const createdPost = await readApiData<BackendPost>('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          author_id: viewerId,
+          author_name: 'You',
+          author_handle: '@you',
+          body: trimmedDraft,
+          article: {
+            url: selectedNews.articleUrl,
+            title: selectedNews.headline,
+            source: selectedNews.source,
+            summary: selectedNews.summary,
+            image_url: selectedNews.imageUrl,
+            published_at: selectedNews.publishedAt,
+          },
+        }),
+      });
+      nextPost = mapBackendPost(createdPost);
+    } catch (_error) {
+      // Local fallback keeps the composer usable without a configured database.
+    }
+
     setPosts((previousPosts) => [nextPost, ...previousPosts]);
     setDraft('');
+    clearPostArticleDraft();
   };
 
   const toggleLike = (postId: string) => {
+    const targetPost = posts.find((post) => post.id === postId);
+    if (!targetPost) {
+      return;
+    }
+
+    const nextLiked = !targetPost.isLiked;
+    const nextVote = nextLiked ? 1 : 0;
+
     setPosts((previousPosts) =>
       previousPosts.map((post) => {
         if (post.id !== postId) {
           return post;
         }
 
-        const nextLiked = !post.isLiked;
         return {
           ...post,
           isLiked: nextLiked,
+          viewerVote: nextVote,
           likeCount: post.likeCount + (nextLiked ? 1 : -1),
         };
       })
     );
+
+    if (!targetPost.backendId) {
+      return;
+    }
+
+    void readApiData<BackendVoteSummary>('/api/posts/votes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        post_id: targetPost.backendId,
+        voter_id: viewerId,
+        value: nextVote,
+      }),
+    })
+      .then((summary) => {
+        setPosts((previousPosts) =>
+          previousPosts.map((post) =>
+            post.id === postId
+              ? {
+                ...post,
+                isLiked: summary.viewer_vote > 0,
+                viewerVote: summary.viewer_vote,
+                likeCount: summary.vote_score,
+              }
+              : post
+          )
+        );
+      })
+      .catch(() => undefined);
   };
 
   const sharePost = (postId: string) => {
+    const targetPost = posts.find((post) => post.id === postId);
+
     setPosts((previousPosts) =>
       previousPosts.map((post) =>
         post.id === postId
@@ -174,6 +431,31 @@ const Posts: React.FC = () => {
           : post
       )
     );
+
+    if (!targetPost?.backendId) {
+      return;
+    }
+
+    void readApiData<{ post_id: number; share_count: number }>(
+      '/api/posts/share',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ post_id: targetPost.backendId }),
+      }
+    )
+      .then((result) => {
+        setPosts((previousPosts) =>
+          previousPosts.map((post) =>
+            post.id === postId
+              ? { ...post, shareCount: result.share_count }
+              : post
+          )
+        );
+      })
+      .catch(() => undefined);
   };
 
   const toggleFollow = (handle: string) => {
@@ -190,6 +472,13 @@ const Posts: React.FC = () => {
       return;
     }
 
+    const targetPost = posts.find((post) => post.id === postId);
+    const nextComment: PostComment = {
+      id: createCommentId(),
+      author: 'You',
+      body: trimmedComment,
+    };
+
     setPosts((previousPosts) =>
       previousPosts.map((post) =>
         post.id === postId
@@ -197,12 +486,9 @@ const Posts: React.FC = () => {
             ...post,
             comments: [
               ...post.comments,
-              {
-                id: createCommentId(),
-                author: 'You',
-                body: trimmedComment,
-              },
+              nextComment,
             ],
+            commentCount: (post.commentCount ?? post.comments.length) + 1,
           }
           : post
       )
@@ -212,6 +498,23 @@ const Posts: React.FC = () => {
       ...previousDrafts,
       [postId]: '',
     }));
+
+    if (!targetPost?.backendId) {
+      return;
+    }
+
+    void readApiData<BackendPostComment>('/api/posts/comments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        post_id: targetPost.backendId,
+        author_id: viewerId,
+        author_name: 'You',
+        content: trimmedComment,
+      }),
+    }).catch(() => undefined);
   };
 
   return (
@@ -256,7 +559,7 @@ const Posts: React.FC = () => {
             </div>
 
             <div className="mt-5 space-y-3">
-              {placeholderNews.map((newsItem) => {
+              {availableNews.map((newsItem) => {
                 const isSelected = newsItem.id === selectedNewsId;
 
                 return (
@@ -359,9 +662,12 @@ const Posts: React.FC = () => {
           <div className="space-y-5">
             {posts.map((post) => {
               const attachedNews =
-                placeholderNews.find((newsItem) => newsItem.id === post.newsId) ??
-                placeholderNews[0];
+                post.linkedNews ??
+                availableNews.find((newsItem) => newsItem.id === post.newsId) ??
+                availableNews[0];
               const isFollowing = followedHandles.includes(post.handle);
+              const displayedCommentCount =
+                post.commentCount ?? post.comments.length;
 
               return (
                 <article
@@ -431,7 +737,7 @@ const Posts: React.FC = () => {
                       className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
                     >
                       <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                      Comment {post.comments.length}
+                      Comment {displayedCommentCount}
                     </button>
 
                     <button
