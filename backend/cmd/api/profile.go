@@ -51,11 +51,11 @@ func getProfile(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 	}
 
 	var p UserProfile
-	var role, bio, location, website, avatar sql.NullString
+	var role, bio, location, website, avatar, username, displayName sql.NullString
 	err := db.QueryRowContext(r.Context(), `
 		SELECT email, username, display_name, avatar_url, role, bio, location, website
 		FROM users WHERE email = $1
-	`, email).Scan(&p.Email, &p.Username, &p.DisplayName, &avatar, &role, &bio, &location, &website)
+	`, email).Scan(&p.Email, &username, &displayName, &avatar, &role, &bio, &location, &website)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -66,6 +66,8 @@ func getProfile(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		return
 	}
 
+	p.Username = username.String
+	p.DisplayName = displayName.String
 	p.AvatarURL = avatar.String
 	p.Role = role.String
 	p.Bio = bio.String
@@ -114,4 +116,50 @@ func updateProfile(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		"success": true,
 		"data":    req,
 	})
+}
+
+func usersHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if db == nil {
+			writeJSONError(w, http.StatusInternalServerError, "database is not configured")
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+
+		rows, err := db.QueryContext(r.Context(), `
+			SELECT email, username, display_name, avatar_url, role, bio
+			FROM users
+			ORDER BY created_at DESC
+			LIMIT 10
+		`)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "failed to query users")
+			return
+		}
+		defer rows.Close()
+
+		var users []UserProfile
+		for rows.Next() {
+			var p UserProfile
+			var role, bio, avatar, username, displayName sql.NullString
+			if err := rows.Scan(&p.Email, &username, &displayName, &avatar, &role, &bio); err == nil {
+				p.Username = username.String
+				p.DisplayName = displayName.String
+				p.AvatarURL = avatar.String
+				p.Role = role.String
+				p.Bio = bio.String
+				users = append(users, p)
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"data":    users,
+		})
+	}
 }

@@ -15,6 +15,7 @@ module.exports = function setupProxy(app) {
     '/post-comments',
     '/following',
     '/profile',
+    '/users',
   ].forEach((path) => {
     app.use(
       path,

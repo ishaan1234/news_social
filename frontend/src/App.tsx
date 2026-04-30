@@ -49,6 +49,19 @@ const renderRoute = (
   handleAuthSuccess: (session: AuthSession) => void,
   handleSignOut: () => void
 ) => {
+  const isSignedIn = Boolean(authSession?.user?.email);
+
+  // If signed out, redirect to Auth for restricted pages
+  if (!isSignedIn && (route === '/posts' || route === '/profile' || route === '/settings')) {
+    return (
+      <Auth
+        authSession={authSession}
+        onAuthSuccess={handleAuthSuccess}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
+
   switch (route) {
     case '/posts':
       return <Posts authSession={authSession} />;

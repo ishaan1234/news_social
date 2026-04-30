@@ -107,13 +107,6 @@ func getFeed(r *http.Request, db *sql.DB, userEmail string) ([]feedPost, error) 
 		JOIN articles a ON a.id = p.article_id
 		LEFT JOIN post_likes pl ON pl.post_id = p.id
 		LEFT JOIN post_comments pc ON pc.post_id = p.id
-		WHERE
-			p.user_email = $1
-			OR p.user_email IN (
-				SELECT following_email
-				FROM following
-				WHERE follower_email = $1
-			)
 		GROUP BY p.id, u.email, a.id
 		ORDER BY p.created_at DESC
 	`, userEmail)

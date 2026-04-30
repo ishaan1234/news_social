@@ -263,6 +263,7 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(initialTimelineItems);
   const [followersCount, setFollowersCount] = useState<number>(0);
   const [followingCount, setFollowingCount] = useState<number>(0);
+  const [suggestedUsers, setSuggestedUsers] = useState<SuggestedProfile[]>([]);
   const profileInitials = getInitials(profile.name);
 
   useEffect(() => {
@@ -313,6 +314,25 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
       }
 
       try {
+        const usersData = await readApiData<any[]>('/users', 'data');
+        if (usersData && Array.isArray(usersData)) {
+          const profiles = usersData
+            .filter(u => u.email !== authSession?.user?.email)
+            .map(u => ({
+              id: u.email,
+              name: u.display_name || u.email.split('@')[0],
+              handle: u.username || `@${u.email.split('@')[0]}`,
+              bio: u.bio || 'Newshub user',
+              initials: getInitials(u.display_name || u.email.split('@')[0]),
+              accent: 'from-cyan-500 to-blue-500',
+            }));
+          setSuggestedUsers(profiles);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      try {
         const email = authSession.user.email;
         const profileData = await readApiData<any>(
           `/profile?email=${encodeURIComponent(email)}`,
@@ -341,11 +361,7 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
     fetchTimeline();
   }, [authSession]);
 
-  useEffect(() => {
-    const syncedProfile = buildProfileFromSession(authSession);
-    setProfile(syncedProfile);
-    setDraftProfile(syncedProfile);
-  }, [authSession]);
+
 
   const visibleTimelineItems = timelineItems.filter(
     (item) => item.tab === activeTab
@@ -613,37 +629,13 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-bold text-slate-900">
-                  Trending in NewsHub
-                </h2>
-                <SparklesIcon className="h-6 w-6 text-sky-500" />
-              </div>
 
-              <div className="mt-4 space-y-4">
-                {trendItems.map((trend) => (
-                  <article
-                    key={trend.id}
-                    className="rounded-[22px] bg-slate-50 px-4 py-4"
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                      {trend.category}
-                    </p>
-                    <h3 className="mt-2 text-sm font-semibold text-slate-900">
-                      {trend.title}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-500">{trend.posts}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
 
             <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold text-slate-900">Who to follow</h2>
 
               <div className="mt-4 space-y-4">
-                {suggestedProfiles.map((person) => (
+                {suggestedUsers.map((person) => (
                   <article key={person.id} className="flex items-start gap-3">
                     <div
                       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${person.accent} text-sm font-semibold text-white`}

@@ -608,6 +608,24 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
       .catch(() => undefined);
   };
 
+  const deletePost = async (postId: string) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    if (canUseBackend) {
+      try {
+        await readApiData(`/posts?id=${postId}`, 'data', {
+          method: 'DELETE',
+          headers: authHeaders(authSession),
+        });
+      } catch (e) {
+        console.error("Failed to delete post", e);
+        return;
+      }
+    }
+
+    setPosts((prev) => prev.filter(p => p.id !== postId));
+  };
+
   return (
     <main data-cy="posts-page" className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       {/* <section className="rounded-[32px] bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 px-6 py-8 text-white shadow-sm sm:px-8">
@@ -805,6 +823,15 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
                           {isFollowing ? 'Following' : 'Follow'}
                         </button>
                       )}
+                      {isOwnPost && (
+                        <button
+                          type="button"
+                          onClick={() => deletePost(post.id)}
+                          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition bg-rose-100 text-rose-600 hover:bg-rose-200"
+                        >
+                          Delete
+                        </button>
+                      )}
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Opinion
                       </span>
@@ -843,15 +870,6 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
                       Comment {displayedCommentCount}
                     </button>
 
-                    <button
-                      type="button"
-                      data-cy={`share-${post.id}`}
-                      onClick={() => sharePost(post.id)}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
-                    >
-                      <ArrowUpOnSquareIcon className="h-5 w-5" />
-                      Share {post.shareCount}
-                    </button>
                   </div>
 
                   <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
@@ -903,9 +921,9 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
                   </div>
 
                   {attachedNews && (
-                    <div className="mt-5 rounded-[24px] border border-blue-100 bg-blue-50 p-4">
+                    <a href={attachedNews.articleUrl || '#'} target="_blank" rel="noopener noreferrer" className="block mt-5 rounded-[24px] border border-blue-100 bg-blue-50 p-4 hover:bg-blue-100 transition">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-                        Attached News Summary
+                        Attached News Summary (Click to View Full Article)
                       </p>
                       <h4 className="mt-2 text-sm font-bold text-slate-900">
                         {attachedNews.headline}
@@ -916,7 +934,7 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
                       <p className="mt-3 text-sm leading-6 text-slate-600">
                         {attachedNews.summary}
                       </p>
-                    </div>
+                    </a>
                   )}
                 </article>
               );
