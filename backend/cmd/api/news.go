@@ -264,6 +264,33 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		if r.URL.Query().Get("cached") == "true" {
+			rows, err := db.Query(`
+				SELECT id::text, title, COALESCE(description, ''), COALESCE(content, ''), COALESCE(summary, ''), COALESCE(author, ''), COALESCE(source_name, ''), COALESCE(source_id, ''), url, COALESCE(image_url, ''), COALESCE(published_at::text, '')
+				FROM articles
+				ORDER BY created_at DESC
+				LIMIT 20
+			`)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "failed to query cached articles")
+				return
+			}
+			defer rows.Close()
+
+			var cachedResp NewsAPIResponse
+			cachedResp.Status = "ok"
+			for rows.Next() {
+				var a Article
+				if err := rows.Scan(&a.ID, &a.Title, &a.Description, &a.Content, &a.Summary, &a.Author, &a.Source.Name, &a.Source.ID, &a.URL, &a.URLToImage, &a.PublishedAt); err == nil {
+					cachedResp.Articles = append(cachedResp.Articles, a)
+				}
+			}
+			cachedResp.TotalResults = len(cachedResp.Articles)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cachedResp)
+			return
+		}
+
 		query := r.URL.Query().Get("q")
 		if query == "" {
 			query = "tesla"
@@ -301,6 +328,17 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		for i := range newsResp.Articles {
+			var existingID string
+			var existingSummary sql.NullString
+			err := db.QueryRow("SELECT id::text, summary FROM articles WHERE url = $1", newsResp.Articles[i].URL).Scan(&existingID, &existingSummary)
+			if err == nil {
+				newsResp.Articles[i].ID = existingID
+				if existingSummary.Valid && existingSummary.String != "" && existingSummary.String != "summary unavailable" {
+					newsResp.Articles[i].Summary = existingSummary.String
+					continue
+				}
+			}
+
 			fullText, err := extractArticleText(newsResp.Articles[i].URL)
 			if err != nil || strings.TrimSpace(fullText) == "" {
 				fullText = "Title: " + newsResp.Articles[i].Title + "\n" +
@@ -310,6 +348,7 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 
 			summary, err := summarizeWithGroq(fullText)
 			if err != nil {
+				log.Printf("failed to summarize %s: %v", newsResp.Articles[i].URL, err)
 				newsResp.Articles[i].Summary = "summary unavailable"
 			} else {
 				newsResp.Articles[i].Summary = summary

@@ -20,57 +20,7 @@ interface BackendNewsResponse {
   articles?: BackendArticle[];
 }
 
-const placeholderNews: NewsCardProps[] = [
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Technology',
-    source: 'Tech Daily',
-    timeAgo: '2h ago',
-    articleUrl: 'https://example.com',
-    imageUrl: 'https://picsum.photos/seed/news1/800/600',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'World',
-    source: 'World News',
-    timeAgo: '4h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Business',
-    source: 'Finance Wire',
-    timeAgo: '5h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Sports',
-    source: 'Sports Central',
-    timeAgo: '6h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Science',
-    source: 'Space Report',
-    timeAgo: '8h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Health',
-    source: 'Health Today',
-    timeAgo: '10h ago',
-    articleUrl: 'https://example.com',
-  },
-];
+
 
 const backendQuery = 'tesla';
 const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(
@@ -133,7 +83,7 @@ const Home: React.FC = () => {
   const [current, setCurrent] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
-  const newsItems = articles.length > 0 ? articles : placeholderNews;
+  const newsItems = articles;
   const total = newsItems.length;
 
   const loadNews = useCallback(async (signal?: AbortSignal) => {
@@ -141,6 +91,17 @@ const Home: React.FC = () => {
     setLoadError('');
 
     try {
+      const cachedResponse = await fetch(`${apiBaseUrl}/news?cached=true`, { signal }).catch(() => null);
+      if (cachedResponse && cachedResponse.ok) {
+        const cachedData = (await cachedResponse.json().catch(() => {})) as BackendNewsResponse;
+        if (cachedData && cachedData.articles) {
+          const cachedArticles = cachedData.articles.map(mapBackendArticle);
+          if (cachedArticles.length > 0) {
+            setArticles(cachedArticles);
+          }
+        }
+      }
+
       const response = await fetch(
         `${apiBaseUrl}/news?q=${encodeURIComponent(backendQuery)}`,
         { signal }
@@ -153,21 +114,26 @@ const Home: React.FC = () => {
       const data = (await response.json()) as BackendNewsResponse;
       const nextArticles = (data.articles || []).map(mapBackendArticle);
 
-      if (nextArticles.length === 0) {
-        throw new Error('no articles returned');
+      if (nextArticles.length > 0) {
+        setArticles(nextArticles);
+        setCurrent(0);
+      } else {
+        setArticles((prev) => {
+          if (prev.length === 0) throw new Error('no articles returned');
+          return prev;
+        });
       }
-
-      setArticles(nextArticles);
-      setCurrent(0);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
 
-      setArticles([]);
-      setLoadError(
-        'Unable to load live news. Showing placeholder stories instead.'
-      );
+      setArticles((prev) => {
+        if (prev.length === 0) {
+          setLoadError('Unable to load live news. Please try again later.');
+        }
+        return prev;
+      });
     } finally {
       if (!signal?.aborted) {
         setIsLoading(false);

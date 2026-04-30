@@ -8,7 +8,6 @@ import {
 import Navbar from './components/Navbar';
 import Auth from './pages/Auth';
 import Home from './pages/Home';
-import Chat from './pages/Chat';
 import Posts from './pages/Posts';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
@@ -16,7 +15,6 @@ import Settings from './pages/Settings';
 export type AppRoute =
   | '/'
   | '/posts'
-  | '/chat'
   | '/profile'
   | '/settings'
   | '/auth';
@@ -24,7 +22,6 @@ export type AppRoute =
 const validRoutes: AppRoute[] = [
   '/',
   '/posts',
-  '/chat',
   '/profile',
   '/settings',
   '/auth',
@@ -53,8 +50,6 @@ const renderRoute = (
   handleSignOut: () => void
 ) => {
   switch (route) {
-    case '/chat':
-      return <Chat />;
     case '/posts':
       return <Posts authSession={authSession} />;
     case '/profile':

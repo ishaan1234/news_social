@@ -42,6 +42,7 @@ func main() {
 	mux.HandleFunc("/feed", feedHandler(sqlDB))
 	mux.HandleFunc("/post-likes", postLikesHandler(sqlDB))
 	mux.HandleFunc("/post-comments", postCommentsHandler(sqlDB))
+	mux.HandleFunc("/profile", profileHandler(sqlDB))
 
 	registerFirebaseEmailPasswordRoutes(mux)
 

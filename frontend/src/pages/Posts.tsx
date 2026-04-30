@@ -117,74 +117,7 @@ interface PostsProps {
   authSession?: AuthSession | null;
 }
 
-const placeholderNews: NewsReference[] = [
-  {
-    id: 'chip-policy',
-    headline: 'Chip export rules tighten as AI demand keeps rising',
-    source: 'Tech Daily',
-    category: 'Technology',
-    summary:
-      'Regulators are tightening export restrictions on advanced chips while cloud and AI spending remains elevated. Companies now need to balance compliance risk, supply chain planning, and investor pressure around long-term growth.',
-    articleUrl: 'https://example.com/chip-policy',
-  },
-  {
-    id: 'election-debate',
-    headline: 'Election debate shifts focus toward economic credibility',
-    source: 'World Wire',
-    category: 'Politics',
-    summary:
-      'The latest debate centered on inflation, wages, and public trust in economic leadership. Analysts say the exchange may matter less for headline moments and more for how undecided voters judge competence and stability.',
-    articleUrl: 'https://example.com/election-debate',
-  },
-  {
-    id: 'ev-market',
-    headline: 'EV makers push expansion as pricing pressure intensifies',
-    source: 'Market Brief',
-    category: 'Business',
-    summary:
-      'Electric vehicle companies are expanding capacity and retail presence even as competition pushes margins lower. The main question is whether volume growth can offset price pressure quickly enough to preserve investor confidence.',
-    articleUrl: 'https://example.com/ev-market',
-  },
-];
-
-const initialPosts: OpinionPost[] = [
-  {
-    id: 'post-1',
-    author: 'Maya Chen',
-    handle: '@maya',
-    postedAt: '12m ago',
-    body: 'Most coverage is treating this like a policy shock, but the bigger story is execution risk. If supply planning lags, the headline impact will outlast the announcement itself.',
-    newsId: 'chip-policy',
-    likeCount: 14,
-    shareCount: 3,
-    isLiked: false,
-    comments: [
-      {
-        id: 'comment-1',
-        author: 'Nina',
-        body: 'That execution-risk angle is stronger than most of the headlines.',
-      },
-    ],
-  },
-  {
-    id: 'post-2',
-    author: 'Jordan Lee',
-    handle: '@jord',
-    postedAt: '28m ago',
-    body: 'The debate takeaway is not who had the sharpest line. It is which candidate sounded like they understood household economics in practical terms.',
-    newsId: 'election-debate',
-    likeCount: 9,
-    shareCount: 2,
-    isLiked: true,
-    comments: [
-      {
-        id: 'comment-2',
-        author: 'Maya',
-        body: 'Agreed. Tone mattered less than whether the answer felt grounded.',
-      },
-    ],
-  },
-];
+const initialPosts: OpinionPost[] = [];
 
 const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(
   /\/$/,
@@ -341,24 +274,23 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
   const [linkedNews] = useState<NewsReference | null>(() =>
     createLinkedNewsFromDraft()
   );
+  const [availableNews, setAvailableNews] = useState<NewsReference[]>(
+    linkedNews ? [linkedNews] : []
+  );
   const [posts, setPosts] = useState<OpinionPost[]>(initialPosts);
   const [draft, setDraft] = useState('');
   const [selectedNewsId, setSelectedNewsId] = useState(
-    () => linkedNews?.id || placeholderNews[0].id
+    () => linkedNews?.id || ''
   );
-  const [followedHandles, setFollowedHandles] = useState<string[]>(['@maya']);
+  const [followedHandles, setFollowedHandles] = useState<string[]>([]);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
     {}
   );
   const hasVerifiedSession = isVerifiedAuthSession(authSession);
   const sessionEmail = authSession?.user?.email?.trim().toLowerCase() || '';
-  const canUseSupabase = hasVerifiedSession && Boolean(sessionEmail);
+  const canUseBackend = hasVerifiedSession && Boolean(sessionEmail);
   const currentAuthorName = getSessionDisplayName(authSession, 'You');
   const currentHandle = getSessionHandle(authSession, '@you');
-  const availableNews = useMemo(
-    () => (linkedNews ? [linkedNews, ...placeholderNews] : placeholderNews),
-    [linkedNews]
-  );
 
   const selectedNews = useMemo(
     () =>
@@ -367,8 +299,39 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
     [availableNews, selectedNewsId]
   );
 
+  const loadNews = useCallback(async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/news?q=latest`);
+      const data = await response.json();
+      if (data.articles) {
+        const mappedNews: NewsReference[] = data.articles.map((article: any) => ({
+          id: article.id || getStableArticleId(article.url),
+          articleId: article.id,
+          headline: article.title || 'Untitled',
+          source: article.source?.name || 'Unknown source',
+          category: 'News',
+          summary: article.summary || article.description || 'Summary unavailable.',
+          articleUrl: article.url || 'https://example.com',
+          imageUrl: article.urlToImage,
+          publishedAt: article.publishedAt,
+        }));
+        setAvailableNews((prev) => {
+          const newItems = mappedNews.filter(
+            (n) => !prev.some((p) => p.id === n.id)
+          );
+          return [...prev, ...newItems];
+        });
+        if (!selectedNewsId && mappedNews.length > 0) {
+          setSelectedNewsId(mappedNews[0].id);
+        }
+      }
+    } catch (error) {
+      // Ignore errors for now
+    }
+  }, [selectedNewsId]);
+
   const loadPosts = useCallback(async () => {
-    if (!canUseSupabase) {
+    if (!canUseBackend) {
       setPosts(initialPosts);
       return;
     }
@@ -409,13 +372,29 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
         setPosts(hydratedPosts);
       }
     } catch (_error) {
-      // Keep the local starter posts when the Supabase-backed API is unavailable.
+      // Keep the local starter posts when the backend API is unavailable.
     }
-  }, [authSession, canUseSupabase, sessionEmail]);
+  }, [authSession, canUseBackend, sessionEmail]);
 
   useEffect(() => {
+    void loadNews();
     void loadPosts();
-  }, [loadPosts]);
+  }, [loadNews, loadPosts]);
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    const match = hash.match(/postId=([^&]+)/);
+    if (match && match[1] && posts.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`post-${match[1]}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-4', 'ring-blue-300', 'transition-all');
+          setTimeout(() => el.classList.remove('ring-4', 'ring-blue-300'), 2000);
+        }
+      }, 500);
+    }
+  }, [posts.length]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -425,7 +404,7 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
       return;
     }
 
-    if (canUseSupabase && selectedNews.articleId) {
+    if (canUseBackend && selectedNews?.articleId) {
       try {
         await readApiData<{
           id: string;
@@ -448,7 +427,7 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
         clearPostArticleDraft();
         return;
       } catch (_error) {
-        // Local fallback keeps the composer usable if Supabase rejects the post.
+        // Local fallback keeps the composer usable if backend rejects the post.
       }
     }
 
@@ -494,7 +473,7 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
       })
     );
 
-    if (!canUseSupabase || !targetPost.userEmail) {
+    if (!canUseBackend || !targetPost.userEmail) {
       return;
     }
 
@@ -539,7 +518,7 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
         : [...previousHandles, post.handle]
     );
 
-    if (!canUseSupabase || !post.userEmail || post.userEmail === sessionEmail) {
+    if (!canUseBackend || !post.userEmail || post.userEmail === sessionEmail) {
       return;
     }
 
@@ -595,7 +574,7 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
       [postId]: '',
     }));
 
-    if (!canUseSupabase || !targetPost?.userEmail) {
+    if (!canUseBackend || !targetPost?.userEmail) {
       return;
     }
 
@@ -694,20 +673,22 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-blue-100 bg-blue-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
-              Attached Summary Preview
-            </p>
-            <h3 className="mt-3 text-lg font-bold text-slate-900">
-              {selectedNews.headline}
-            </h3>
-            <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-              {selectedNews.source}
-            </p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              {selectedNews.summary}
-            </p>
-          </section>
+          {selectedNews && (
+            <section className="rounded-[28px] border border-blue-100 bg-blue-50 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                Attached Summary Preview
+              </p>
+              <h3 className="mt-3 text-lg font-bold text-slate-900">
+                {selectedNews.headline}
+              </h3>
+              <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                {selectedNews.source}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                {selectedNews.summary}
+              </p>
+            </section>
+          )}
         </aside>
 
         <section className="space-y-6">
@@ -742,25 +723,27 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
               />
             </label>
 
-            <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                News summary that will appear below your post
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {selectedNews.headline}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {selectedNews.summary}
-              </p>
-            </div>
+            {selectedNews && (
+              <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  News summary that will appear below your post
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  {selectedNews.headline}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {selectedNews.summary}
+                </p>
+              </div>
+            )}
 
             <div className="mt-5 flex items-center justify-between gap-4">
               <p className="text-xs text-slate-400">
-                {canUseSupabase
-                  ? selectedNews.articleId
-                    ? `Posting as ${currentHandle}. This will save to Supabase.`
-                    : 'This story needs a saved Supabase article id before it can persist.'
-                  : 'Sign in with a verified account to save posts to Supabase.'}
+                {canUseBackend
+                  ? selectedNews?.articleId
+                    ? `Posting as ${currentHandle}. This will save to the database.`
+                    : 'This story needs a saved article id before it can persist.'
+                  : 'Sign in with a verified account to save posts.'}
               </p>
               <button
                 type="submit"
@@ -789,8 +772,9 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
               return (
                 <article
                   key={post.id}
+                  id={`post-${post.id}`}
                   data-cy="post-card"
-                  className="rounded-[28px] bg-white p-6 shadow-sm"
+                  className="rounded-[28px] bg-white p-6 shadow-sm transition-all"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -918,20 +902,22 @@ const Posts: React.FC<PostsProps> = ({ authSession = null }) => {
                     )}
                   </div>
 
-                  <div className="mt-5 rounded-[24px] border border-blue-100 bg-blue-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-                      Attached News Summary
-                    </p>
-                    <h4 className="mt-2 text-sm font-bold text-slate-900">
-                      {attachedNews.headline}
-                    </h4>
-                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
-                      {attachedNews.source} | {attachedNews.category}
-                    </p>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      {attachedNews.summary}
-                    </p>
-                  </div>
+                  {attachedNews && (
+                    <div className="mt-5 rounded-[24px] border border-blue-100 bg-blue-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+                        Attached News Summary
+                      </p>
+                      <h4 className="mt-2 text-sm font-bold text-slate-900">
+                        {attachedNews.headline}
+                      </h4>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-400">
+                        {attachedNews.source} | {attachedNews.category}
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {attachedNews.summary}
+                      </p>
+                    </div>
+                  )}
                 </article>
               );
             })}
