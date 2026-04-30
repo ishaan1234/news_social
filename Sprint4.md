@@ -1,10 +1,10 @@
 ## 1. Issues planned to address in Sprint 4
-Sprint 4 focus is **Feature Completion + System Refinement** (placeholders allowed).
+Sprint 4 focus is **Feature Completion + System Refinement**.
 
 ### Planned Sprint 4 items (Feature Completion + System Refinement)
 - Frontend: Replacing placeholders in Profile and Settings pages with real data
-- Frontend: Improving UI/UX consistency across Home, Posts, Chat, Profile, and Settings
-- Frontend + Backend Integration: Connecting posts, chat, and news flows end-to-end
+- Frontend: Improving UI/UX consistency across Home, Posts, Profile, and Settings
+- Frontend + Backend Integration: Connecting posts, and news flows end-to-end
 - Backend: Completing implementation of all core internal modules (articles, headlines, posts, social, summaries)
 - Backend: Optimizing repository layer and database interactions
 - Backend: Strengthening error handling and request validation
@@ -18,7 +18,7 @@ Sprint 4 focus is **Feature Completion + System Refinement** (placeholders allow
 ## 2. Completed successfully
 - **Frontend Enhancements**
   - Improved UI consistency across all major pages (Home, Posts, Chat, Profile, Settings)
-  - Integrated frontend pages with backend APIs (Posts, Chat, Profile)
+  - Integrated frontend pages with backend APIs (Posts, Profile, Home)
   - Reduced reliance on placeholders by incorporating real backend data
 
 - **Backend (Internal Modules Completion)**
@@ -60,7 +60,6 @@ Sprint 4 focus is **Feature Completion + System Refinement** (placeholders allow
 
 ## 3. List of Unit Tests & Cypress Tests for frontend
 - Cypress component tests:
-  - chat.cy.jsx
   - home.cy.jsx
   - posts.cy.jsx
   - profile.cy.jsx
