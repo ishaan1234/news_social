@@ -4,6 +4,7 @@ import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { savePostArticleDraft } from '../postArticleDraft';
 
 interface BackendArticle {
+  id?: string;
   source?: {
     name?: string;
   };
@@ -19,60 +20,13 @@ interface BackendNewsResponse {
   articles?: BackendArticle[];
 }
 
-const placeholderNews: NewsCardProps[] = [
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Technology',
-    source: 'Tech Daily',
-    timeAgo: '2h ago',
-    articleUrl: 'https://example.com',
-    imageUrl: 'https://picsum.photos/seed/news1/800/600',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'World',
-    source: 'World News',
-    timeAgo: '4h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Business',
-    source: 'Finance Wire',
-    timeAgo: '5h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Sports',
-    source: 'Sports Central',
-    timeAgo: '6h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Science',
-    source: 'Space Report',
-    timeAgo: '8h ago',
-    articleUrl: 'https://example.com',
-  },
-  {
-    headline: 'Headline placeholder',
-    summary: 'This is random news summary of headline placeholder.',
-    category: 'Health',
-    source: 'Health Today',
-    timeAgo: '10h ago',
-    articleUrl: 'https://example.com',
-  },
-];
+
 
 const backendQuery = 'tesla';
-const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/$/, '');
+const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(
+  /\/$/,
+  ''
+);
 
 const formatTimeAgo = (publishedAt?: string) => {
   if (!publishedAt) {
@@ -84,7 +38,10 @@ const formatTimeAgo = (publishedAt?: string) => {
     return 'Recently';
   }
 
-  const diffMinutes = Math.max(0, Math.floor((Date.now() - publishedMs) / 60000));
+  const diffMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - publishedMs) / 60000)
+  );
 
   if (diffMinutes < 1) {
     return 'Just now';
@@ -114,6 +71,7 @@ const mapBackendArticle = (article: BackendArticle): NewsCardProps => {
     source: article.source?.name?.trim() || 'Unknown source',
     timeAgo: formatTimeAgo(article.publishedAt),
     articleUrl: article.url?.trim() || 'https://example.com',
+    articleId: article.id?.trim() || undefined,
     imageUrl: article.urlToImage?.trim() || undefined,
   };
 };
@@ -125,7 +83,7 @@ const Home: React.FC = () => {
   const [current, setCurrent] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
-  const newsItems = articles.length > 0 ? articles : placeholderNews;
+  const newsItems = articles;
   const total = newsItems.length;
 
   const loadNews = useCallback(async (signal?: AbortSignal) => {
@@ -133,6 +91,17 @@ const Home: React.FC = () => {
     setLoadError('');
 
     try {
+      const cachedResponse = await fetch(`${apiBaseUrl}/news?cached=true`, { signal }).catch(() => null);
+      if (cachedResponse && cachedResponse.ok) {
+        const cachedData = (await cachedResponse.json().catch(() => {})) as BackendNewsResponse;
+        if (cachedData && cachedData.articles) {
+          const cachedArticles = cachedData.articles.map(mapBackendArticle);
+          if (cachedArticles.length > 0) {
+            setArticles(cachedArticles);
+          }
+        }
+      }
+
       const response = await fetch(
         `${apiBaseUrl}/news?q=${encodeURIComponent(backendQuery)}`,
         { signal }
@@ -145,19 +114,26 @@ const Home: React.FC = () => {
       const data = (await response.json()) as BackendNewsResponse;
       const nextArticles = (data.articles || []).map(mapBackendArticle);
 
-      if (nextArticles.length === 0) {
-        throw new Error('no articles returned');
+      if (nextArticles.length > 0) {
+        setArticles(nextArticles);
+        setCurrent(0);
+      } else {
+        setArticles((prev) => {
+          if (prev.length === 0) throw new Error('no articles returned');
+          return prev;
+        });
       }
-
-      setArticles(nextArticles);
-      setCurrent(0);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
 
-      setArticles([]);
-      setLoadError('Unable to load live news. Showing placeholder stories instead.');
+      setArticles((prev) => {
+        if (prev.length === 0) {
+          setLoadError('Unable to load live news. Please try again later.');
+        }
+        return prev;
+      });
     } finally {
       if (!signal?.aborted) {
         setIsLoading(false);
@@ -181,6 +157,7 @@ const Home: React.FC = () => {
   const goPrev = useCallback(() => goTo(current - 1), [current, goTo]);
   const handleCreatePost = useCallback((item: NewsCardProps) => {
     savePostArticleDraft({
+      id: item.articleId,
       url: item.articleUrl,
       title: item.headline,
       source: item.source,
@@ -294,7 +271,11 @@ const Home: React.FC = () => {
         style={{ transform: `translateY(-${current * 100}%)` }}
       >
         {newsItems.map((item, i) => (
-          <div key={i} className="h-full w-full flex-shrink-0" style={{ height: 'calc(100vh - 56px)' }}>
+          <div
+            key={i}
+            className="h-full w-full flex-shrink-0"
+            style={{ height: 'calc(100vh - 56px)' }}
+          >
             <NewsCard {...item} onCreatePost={() => handleCreatePost(item)} />
           </div>
         ))}
@@ -330,8 +311,9 @@ const Home: React.FC = () => {
             onClick={() => goTo(i)}
             aria-label={`Go to article ${i + 1}`}
             data-cy={`news-dot-${i}`}
-            className={`w-2 h-2 rounded-full transition-all ${i === current ? 'bg-blue-600 scale-125' : 'bg-gray-300'
-              }`}
+            className={`w-2 h-2 rounded-full transition-all ${
+              i === current ? 'bg-blue-600 scale-125' : 'bg-gray-300'
+            }`}
           />
         ))}
       </div>

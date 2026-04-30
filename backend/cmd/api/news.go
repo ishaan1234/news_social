@@ -192,6 +192,7 @@ type NewsAPIResponse struct {
 }
 
 type Article struct {
+	ID          string `json:"id,omitempty"`
 	Source      Source `json:"source"`
 	Author      string `json:"author"`
 	Title       string `json:"title"`
@@ -208,12 +209,13 @@ type Source struct {
 	Name string `json:"name"`
 }
 
-func saveArticleToDB(db *sql.DB, a Article) error {
+func saveArticleToDB(db *sql.DB, a Article) (string, error) {
 	if db == nil {
-		return nil
+		return "", nil
 	}
 
-	_, err := db.Exec(`
+	var id string
+	err := db.QueryRow(`
 		INSERT INTO articles (
 			title,
 			description,
@@ -237,6 +239,7 @@ func saveArticleToDB(db *sql.DB, a Article) error {
 			source_id = EXCLUDED.source_id,
 			image_url = EXCLUDED.image_url,
 			published_at = EXCLUDED.published_at
+		RETURNING id::text
 	`,
 		a.Title,
 		a.Description,
@@ -248,9 +251,9 @@ func saveArticleToDB(db *sql.DB, a Article) error {
 		a.URL,
 		a.URLToImage,
 		a.PublishedAt,
-	)
+	).Scan(&id)
 
-	return err
+	return id, err
 }
 
 func newsHandler(db *sql.DB) http.HandlerFunc {
@@ -258,6 +261,33 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 		apiKey := os.Getenv("NEWSAPI_KEY")
 		if apiKey == "" {
 			writeJSONError(w, http.StatusInternalServerError, "missing NEWSAPI_KEY environment variable")
+			return
+		}
+
+		if r.URL.Query().Get("cached") == "true" {
+			rows, err := db.Query(`
+				SELECT id::text, title, COALESCE(description, ''), COALESCE(content, ''), COALESCE(summary, ''), COALESCE(author, ''), COALESCE(source_name, ''), COALESCE(source_id, ''), url, COALESCE(image_url, ''), COALESCE(published_at::text, '')
+				FROM articles
+				ORDER BY created_at DESC
+				LIMIT 20
+			`)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "failed to query cached articles")
+				return
+			}
+			defer rows.Close()
+
+			var cachedResp NewsAPIResponse
+			cachedResp.Status = "ok"
+			for rows.Next() {
+				var a Article
+				if err := rows.Scan(&a.ID, &a.Title, &a.Description, &a.Content, &a.Summary, &a.Author, &a.Source.Name, &a.Source.ID, &a.URL, &a.URLToImage, &a.PublishedAt); err == nil {
+					cachedResp.Articles = append(cachedResp.Articles, a)
+				}
+			}
+			cachedResp.TotalResults = len(cachedResp.Articles)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cachedResp)
 			return
 		}
 
@@ -298,6 +328,17 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		for i := range newsResp.Articles {
+			var existingID string
+			var existingSummary sql.NullString
+			err := db.QueryRow("SELECT id::text, summary FROM articles WHERE url = $1", newsResp.Articles[i].URL).Scan(&existingID, &existingSummary)
+			if err == nil {
+				newsResp.Articles[i].ID = existingID
+				if existingSummary.Valid && existingSummary.String != "" && existingSummary.String != "summary unavailable" {
+					newsResp.Articles[i].Summary = existingSummary.String
+					continue
+				}
+			}
+
 			fullText, err := extractArticleText(newsResp.Articles[i].URL)
 			if err != nil || strings.TrimSpace(fullText) == "" {
 				fullText = "Title: " + newsResp.Articles[i].Title + "\n" +
@@ -307,14 +348,17 @@ func newsHandler(db *sql.DB) http.HandlerFunc {
 
 			summary, err := summarizeWithGroq(fullText)
 			if err != nil {
+				log.Printf("failed to summarize %s: %v", newsResp.Articles[i].URL, err)
 				newsResp.Articles[i].Summary = "summary unavailable"
 			} else {
 				newsResp.Articles[i].Summary = summary
 			}
 
 			// Save to Supabase/Postgres after summary is ready
-			if err := saveArticleToDB(db, newsResp.Articles[i]); err != nil {
+			if articleID, err := saveArticleToDB(db, newsResp.Articles[i]); err != nil {
 				log.Println("failed to save article:", err)
+			} else if articleID != "" {
+				newsResp.Articles[i].ID = articleID
 			}
 		}
 

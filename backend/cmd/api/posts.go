@@ -28,13 +28,18 @@ type postResponse struct {
 
 func createPostHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+		if db == nil {
+			writeJSONError(w, http.StatusInternalServerError, "database is not configured")
 			return
 		}
 
-		if db == nil {
-			writeJSONError(w, http.StatusInternalServerError, "database is not configured")
+		if r.Method == http.MethodDelete {
+			deletePostHandler(w, r, db)
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
 
@@ -46,9 +51,13 @@ func createPostHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		userEmail, err := normalizeEmail(req.UserEmail)
+		userEmail, err := requestUserEmail(r, req.UserEmail)
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
+			if hasAuthorizationHeader(r) {
+				writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+			} else {
+				writeJSONError(w, http.StatusBadRequest, err.Error())
+			}
 			return
 		}
 
@@ -107,4 +116,45 @@ func postInsertError(err error) (int, string) {
 	default:
 		return http.StatusInternalServerError, "failed to create post"
 	}
+}
+
+func deletePostHandler(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	postID := r.URL.Query().Get("id")
+	if postID == "" {
+		writeJSONError(w, http.StatusBadRequest, "valid id is required")
+		return
+	}
+
+	if !hasAuthorizationHeader(r) {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var postEmail string
+	err := db.QueryRowContext(r.Context(), "SELECT user_email FROM posts WHERE id = $1", postID).Scan(&postEmail)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeJSONError(w, http.StatusNotFound, "post not found")
+		} else {
+			writeJSONError(w, http.StatusInternalServerError, "failed to query post")
+		}
+		return
+	}
+
+	sessionEmail, err := requestUserEmail(r, postEmail)
+	if err != nil || sessionEmail != postEmail {
+		writeJSONError(w, http.StatusForbidden, "not allowed to delete this post")
+		return
+	}
+
+	_, err = db.ExecContext(r.Context(), "DELETE FROM posts WHERE id = $1", postID)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "failed to delete post")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+	})
 }

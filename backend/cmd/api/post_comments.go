@@ -62,9 +62,13 @@ func createPostComment(w http.ResponseWriter, r *http.Request, db *sql.DB) {
 		return
 	}
 
-	userEmail, err := normalizeEmail(req.UserEmail)
+	userEmail, err := requestUserEmail(r, req.UserEmail)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "valid user_email is required")
+		if hasAuthorizationHeader(r) {
+			writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+		} else {
+			writeJSONError(w, http.StatusBadRequest, "valid user_email is required")
+		}
 		return
 	}
 

@@ -23,12 +23,22 @@ type followResponse struct {
 
 func followingHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		if db == nil {
 			writeJSONError(w, http.StatusInternalServerError, "database is not configured")
 			return
 		}
 
 		switch r.Method {
+		case http.MethodGet:
+			getFollowingStats(w, r, db)
 		case http.MethodPost:
 			followUser(w, r, db)
 		case http.MethodDelete:
@@ -37,6 +47,34 @@ func followingHandler(db *sql.DB) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 	}
+}
+
+func getFollowingStats(w http.ResponseWriter, r *http.Request, db *sql.DB) {
+	email := r.URL.Query().Get("email")
+	if email == "" {
+		writeJSONError(w, http.StatusBadRequest, "email query parameter is required")
+		return
+	}
+
+	var followersCount, followingCount int
+	err := db.QueryRowContext(r.Context(), `
+		SELECT
+			(SELECT COUNT(*) FROM following WHERE following_email = $1),
+			(SELECT COUNT(*) FROM following WHERE follower_email = $1)
+	`, email).Scan(&followersCount, &followingCount)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "failed to get stats")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"data": map[string]int{
+			"followers": followersCount,
+			"following": followingCount,
+		},
+	})
 }
 
 func followUser(w http.ResponseWriter, r *http.Request, db *sql.DB) {
@@ -110,9 +148,13 @@ func decodeFollowRequest(w http.ResponseWriter, r *http.Request) (followRequest,
 		return followRequest{}, false
 	}
 
-	followerEmail, err := normalizeEmail(req.FollowerEmail)
+	followerEmail, err := requestUserEmail(r, req.FollowerEmail)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "valid follower_email is required")
+		if hasAuthorizationHeader(r) {
+			writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+		} else {
+			writeJSONError(w, http.StatusBadRequest, "valid follower_email is required")
+		}
 		return followRequest{}, false
 	}
 

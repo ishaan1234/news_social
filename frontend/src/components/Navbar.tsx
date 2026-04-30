@@ -15,7 +15,6 @@ import {
 const navLinks = [
   { name: 'News', path: '/', href: '#/' },
   { name: 'Posts', path: '/posts', href: '#/posts' },
-  { name: 'Chat', path: '/chat', href: '#/chat' },
   { name: 'Profile', path: '/profile', href: '#/profile' },
   { name: 'Settings', path: '/settings', href: '#/settings' },
 ];

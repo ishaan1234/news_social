@@ -1,7 +1,9 @@
 export interface AuthUser {
   uid: string;
   email: string;
+  username?: string;
   display_name?: string;
+  avatar_url?: string;
   email_verified?: boolean;
 }
 
@@ -103,6 +105,11 @@ export const getSessionHandle = (
   session: AuthSession | null,
   fallback = '@newshub'
 ) => {
+  const username = session?.user?.username?.trim();
+  if (username) {
+    return `@${username.replace(/^@+/, '')}`;
+  }
+
   const emailLocalPart = session?.user?.email?.split('@')[0]?.trim();
   if (!emailLocalPart) {
     return fallback;

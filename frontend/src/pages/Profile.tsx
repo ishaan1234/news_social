@@ -18,7 +18,111 @@ import {
   getInitials,
   getSessionDisplayName,
   getSessionHandle,
+  isVerifiedAuthSession,
 } from '../auth';
+
+const apiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').replace(
+  /\/$/,
+  ''
+);
+
+const authHeaders = (authSession: AuthSession | null) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (authSession?.idToken) {
+    headers.Authorization = `Bearer ${authSession.idToken}`;
+  }
+
+  return headers;
+};
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  feed?: T;
+}
+
+const readApiData = async <T,>(
+  path: string,
+  payloadKey: keyof ApiResponse<T>,
+  init?: RequestInit
+): Promise<T> => {
+  const response = await fetch(`${apiBaseUrl}${path}`, init);
+  const body = (await response.json().catch(() => null)) as
+    | ApiResponse<T>
+    | T
+    | null;
+
+  if (!response.ok) {
+    throw new Error('Request failed');
+  }
+
+  if (body && typeof body === 'object' && 'success' in body) {
+    const apiBody = body as ApiResponse<T>;
+    if (!apiBody.success) {
+      throw new Error(apiBody.error || 'Request failed');
+    }
+    return (apiBody[payloadKey] ?? apiBody.data) as T;
+  }
+
+  return body as T;
+};
+
+interface BackendPost {
+  id: string;
+  user_email: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  caption?: string;
+  created_at: string;
+  like_count: number;
+  comment_count: number;
+  liked_by_me: boolean;
+  article: {
+    id: string;
+    title: string;
+    description?: string;
+    content?: string;
+    summary?: string;
+    author?: string;
+    source_name?: string;
+    source_id?: string;
+    url: string;
+    image_url?: string;
+    published_at?: string;
+    created_at: string;
+  };
+}
+
+const formatPostTime = (createdAt?: string) => {
+  if (!createdAt) {
+    return 'Just now';
+  }
+
+  const createdMs = new Date(createdAt).getTime();
+  if (Number.isNaN(createdMs)) {
+    return 'Recently';
+  }
+
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - createdMs) / 60000));
+  if (diffMinutes < 1) {
+    return 'Just now';
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h`;
+  }
+
+  return `${Math.floor(diffHours / 24)}d`;
+};
 
 type TimelineTab = 'Posts' | 'Replies' | 'Media' | 'Likes';
 
@@ -96,81 +200,7 @@ const buildProfileFromSession = (authSession: AuthSession | null): ProfileDraft 
 
 const timelineTabs: TimelineTab[] = ['Posts', 'Replies', 'Media', 'Likes'];
 
-const timelineItems: TimelineItem[] = [
-  {
-    id: 'post-1',
-    tab: 'Posts',
-    eyebrow: 'Pinned',
-    body:
-      'The real AI chip story is no longer the headline announcement. It is whether companies can turn policy uncertainty into an operational plan before the market reprices the risk.',
-    timestamp: '2h',
-    replies: 46,
-    reposts: 18,
-    likes: 302,
-    views: '12.4K',
-  },
-  {
-    id: 'post-2',
-    tab: 'Posts',
-    eyebrow: 'Posted from NewsHub',
-    body:
-      'When election coverage starts sounding like a household budget conversation, audiences stay longer. Economic credibility is landing because it feels practical, not theatrical.',
-    timestamp: 'Yesterday',
-    replies: 28,
-    reposts: 9,
-    likes: 187,
-    views: '8.1K',
-  },
-  {
-    id: 'reply-1',
-    tab: 'Replies',
-    eyebrow: 'Replying to @maya',
-    body:
-      'Yes, but the missing piece is execution risk. If the supply plan slips, the policy angle becomes the least interesting part of the story within a week.',
-    timestamp: '4h',
-    replies: 11,
-    reposts: 4,
-    likes: 96,
-    views: '3.2K',
-  },
-  {
-    id: 'reply-2',
-    tab: 'Replies',
-    eyebrow: 'Replying to @jord',
-    body:
-      'That debate clip is strong because the answer sounds usable. Voters rarely reward policy vocabulary if it does not connect back to everyday pressure.',
-    timestamp: '1d',
-    replies: 8,
-    reposts: 2,
-    likes: 74,
-    views: '2.6K',
-  },
-  {
-    id: 'media-1',
-    tab: 'Media',
-    eyebrow: 'Shared visual note',
-    body:
-      'Pulled the strongest line from today\'s chip briefing into a card so the summary can travel outside the article format.',
-    timestamp: '3d',
-    replies: 14,
-    reposts: 13,
-    likes: 221,
-    views: '10.8K',
-    mediaLabel: 'Policy briefing card',
-  },
-  {
-    id: 'like-1',
-    tab: 'Likes',
-    eyebrow: 'Liked a post from @nina',
-    body:
-      'Margin pressure is not killing EV demand. It is changing which companies can afford to keep telling a growth story while prices fall.',
-    timestamp: '5d',
-    replies: 19,
-    reposts: 12,
-    likes: 164,
-    views: '7.9K',
-  },
-];
+const initialTimelineItems: TimelineItem[] = [];
 
 const trendItems: TrendItem[] = [
   {
@@ -230,14 +260,108 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
   const [activeTab, setActiveTab] = useState<TimelineTab>('Posts');
   const [isEditing, setIsEditing] = useState(false);
   const [followedProfiles, setFollowedProfiles] = useState<string[]>([]);
-  const connectedAccountName = getSessionDisplayName(authSession, 'NewsHub User');
+  const [timelineItems, setTimelineItems] = useState<TimelineItem[]>(initialTimelineItems);
+  const [followersCount, setFollowersCount] = useState<number>(0);
+  const [followingCount, setFollowingCount] = useState<number>(0);
+  const [suggestedUsers, setSuggestedUsers] = useState<SuggestedProfile[]>([]);
   const profileInitials = getInitials(profile.name);
 
   useEffect(() => {
-    const syncedProfile = buildProfileFromSession(authSession);
-    setProfile(syncedProfile);
-    setDraftProfile(syncedProfile);
+    const fetchTimeline = async () => {
+      if (!isVerifiedAuthSession(authSession) || !authSession?.user?.email) {
+        setTimelineItems([]);
+        return;
+      }
+      try {
+        const email = authSession.user.email;
+        const backendPosts = await readApiData<BackendPost[]>(
+          `/feed?user_email=${encodeURIComponent(email)}`,
+          'feed',
+          { headers: authHeaders(authSession) }
+        );
+        if (Array.isArray(backendPosts)) {
+          const mappedItems: TimelineItem[] = backendPosts
+            .filter((post) => post.user_email === email)
+            .map((post) => ({
+              id: post.id,
+              tab: 'Posts',
+              eyebrow: post.article.title,
+              body: post.caption || post.article.summary || post.article.description || 'Viewed article',
+              timestamp: formatPostTime(post.created_at),
+              replies: post.comment_count,
+              reposts: 0,
+              likes: post.like_count,
+              views: '0',
+            }));
+          setTimelineItems(mappedItems);
+        }
+      } catch (e) {
+        setTimelineItems([]);
+      }
+
+      try {
+        const email = authSession.user.email;
+        const stats = await readApiData<{ followers: number; following: number }>(
+          `/following?email=${encodeURIComponent(email)}`,
+          'data',
+          { headers: authHeaders(authSession) }
+        );
+        setFollowersCount(stats.followers);
+        setFollowingCount(stats.following);
+      } catch (e) {
+        setFollowersCount(0);
+        setFollowingCount(0);
+      }
+
+      try {
+        const usersData = await readApiData<any[]>('/users', 'data');
+        if (usersData && Array.isArray(usersData)) {
+          const profiles = usersData
+            .filter(u => u.email !== authSession?.user?.email)
+            .map(u => ({
+              id: u.email,
+              name: u.display_name || u.email.split('@')[0],
+              handle: u.username || `@${u.email.split('@')[0]}`,
+              bio: u.bio || 'Newshub user',
+              initials: getInitials(u.display_name || u.email.split('@')[0]),
+              accent: 'from-cyan-500 to-blue-500',
+            }));
+          setSuggestedUsers(profiles);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      try {
+        const email = authSession.user.email;
+        const profileData = await readApiData<any>(
+          `/profile?email=${encodeURIComponent(email)}`,
+          'data',
+          { headers: authHeaders(authSession) }
+        );
+        if (profileData) {
+          setProfile((prev) => {
+            const newProfile = {
+              ...prev,
+              name: profileData.display_name || prev.name,
+              handle: profileData.username || prev.handle,
+              role: profileData.role || prev.role,
+              bio: profileData.bio || prev.bio,
+              location: profileData.location || prev.location,
+              website: profileData.website || prev.website,
+            };
+            setDraftProfile(newProfile);
+            return newProfile;
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchTimeline();
   }, [authSession]);
+
+
 
   const visibleTimelineItems = timelineItems.filter(
     (item) => item.tab === activeTab
@@ -262,8 +386,29 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
     setIsEditing(false);
   };
 
-  const saveProfile = (event: FormEvent<HTMLFormElement>) => {
+  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (authSession?.user?.email) {
+      try {
+        await readApiData<any>('/profile', 'data', {
+          method: 'PUT',
+          headers: authHeaders(authSession),
+          body: JSON.stringify({
+            email: authSession.user.email,
+            display_name: draftProfile.name,
+            username: draftProfile.handle,
+            role: draftProfile.role,
+            bio: draftProfile.bio,
+            location: draftProfile.location,
+            website: draftProfile.website,
+          }),
+        });
+      } catch (e) {
+        console.error('Failed to save profile', e);
+      }
+    }
+
     setProfile(draftProfile);
     setIsEditing(false);
   };
@@ -325,10 +470,10 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
 
               <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
                 <span className="text-slate-500">
-                  <span className="font-semibold text-slate-900">612</span> Following
+                  <span className="font-semibold text-slate-900">{followingCount}</span> Following
                 </span>
                 <span className="text-slate-500">
-                  <span className="font-semibold text-slate-900">24.8K</span> Followers
+                  <span className="font-semibold text-slate-900">{followersCount}</span> Followers
                 </span>
               </div>
             </div>
@@ -374,17 +519,22 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
             </div>
 
             <div>
-              {visibleTimelineItems.map((item, index) => (
-                <article
-                  key={item.id}
-                  data-cy="profile-activity-card"
-                  className={`px-5 py-5 transition hover:bg-slate-50 ${
-                    index < visibleTimelineItems.length - 1
-                      ? 'border-b border-slate-100'
-                      : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
+              {visibleTimelineItems.length === 0 ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-slate-500">No posts to show.</p>
+                </div>
+              ) : (
+                visibleTimelineItems.map((item, index) => (
+                  <a href={`#/posts?postId=${item.id}`} key={item.id} className="block group">
+                    <article
+                      data-cy="profile-activity-card"
+                      className={`px-5 py-5 transition group-hover:bg-slate-50 ${
+                        index < visibleTimelineItems.length - 1
+                          ? 'border-b border-slate-100'
+                          : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 via-orange-300 to-sky-300 text-sm font-bold text-slate-950">
                       {profileInitials}
                     </div>
@@ -453,67 +603,15 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
                           {item.views}
                         </span>
                       </div>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                </a>
+                )))}
             </div>
           </section>
 
           <aside className="space-y-6">
-            <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-                Connected account
-              </p>
-
-              {authSession ? (
-                <>
-                  <h2 className="mt-3 text-xl font-bold text-slate-900">
-                    {connectedAccountName}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {authSession.user?.email || 'No email returned'}
-                  </p>
-                  <p className="mt-4 text-sm leading-6 text-slate-600">
-                    {authSession.user?.email_verified
-                      ? 'This frontend session matches a verified backend account.'
-                      : 'This account is signed up, but email verification is still pending.'}
-                  </p>
-                  <div className="mt-4 rounded-[22px] bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    <p>
-                      UID: {authSession.user?.uid || 'Unavailable'}
-                    </p>
-                    <p className="mt-2">
-                      Token stored locally for this browser session.
-                    </p>
-                  </div>
-                  {!authSession.user?.email_verified && (
-                    <a
-                      href="#/auth"
-                      className="mt-4 inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      Resend verification email
-                    </a>
-                  )}
-                </>
-              ) : (
-                <>
-                  <h2 className="mt-3 text-xl font-bold text-slate-900">
-                    No backend session yet
-                  </h2>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    The profile UI is live, but the backend auth account is not
-                    connected in this browser yet.
-                  </p>
-                  <a
-                    href="#/auth"
-                    className="mt-4 inline-flex rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                  >
-                    Go to auth
-                  </a>
-                </>
-              )}
-            </section>
 
             <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold text-slate-900">About</h2>
@@ -531,37 +629,13 @@ const Profile: React.FC<ProfileProps> = ({ authSession = null }) => {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-bold text-slate-900">
-                  Trending in NewsHub
-                </h2>
-                <SparklesIcon className="h-6 w-6 text-sky-500" />
-              </div>
 
-              <div className="mt-4 space-y-4">
-                {trendItems.map((trend) => (
-                  <article
-                    key={trend.id}
-                    className="rounded-[22px] bg-slate-50 px-4 py-4"
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                      {trend.category}
-                    </p>
-                    <h3 className="mt-2 text-sm font-semibold text-slate-900">
-                      {trend.title}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-500">{trend.posts}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
 
             <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold text-slate-900">Who to follow</h2>
 
               <div className="mt-4 space-y-4">
-                {suggestedProfiles.map((person) => (
+                {suggestedUsers.map((person) => (
                   <article key={person.id} className="flex items-start gap-3">
                     <div
                       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${person.accent} text-sm font-semibold text-white`}

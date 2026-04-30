@@ -108,9 +108,13 @@ func decodePostLikeRequest(w http.ResponseWriter, r *http.Request) (postLikeRequ
 		return postLikeRequest{}, false
 	}
 
-	userEmail, err := normalizeEmail(req.UserEmail)
+	userEmail, err := requestUserEmail(r, req.UserEmail)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "valid user_email is required")
+		if hasAuthorizationHeader(r) {
+			writeJSONError(w, http.StatusUnauthorized, "valid authenticated user is required")
+		} else {
+			writeJSONError(w, http.StatusBadRequest, "valid user_email is required")
+		}
 		return postLikeRequest{}, false
 	}
 

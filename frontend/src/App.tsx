@@ -8,7 +8,6 @@ import {
 import Navbar from './components/Navbar';
 import Auth from './pages/Auth';
 import Home from './pages/Home';
-import Chat from './pages/Chat';
 import Posts from './pages/Posts';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
@@ -16,7 +15,6 @@ import Settings from './pages/Settings';
 export type AppRoute =
   | '/'
   | '/posts'
-  | '/chat'
   | '/profile'
   | '/settings'
   | '/auth';
@@ -24,7 +22,6 @@ export type AppRoute =
 const validRoutes: AppRoute[] = [
   '/',
   '/posts',
-  '/chat',
   '/profile',
   '/settings',
   '/auth',
@@ -41,7 +38,9 @@ const getCurrentRoute = (): AppRoute => {
     : window.location.pathname || '/';
   const routeOnly = candidate.split('?')[0] || '/';
 
-  return validRouteSet.has(routeOnly as AppRoute) ? (routeOnly as AppRoute) : '/';
+  return validRouteSet.has(routeOnly as AppRoute)
+    ? (routeOnly as AppRoute)
+    : '/';
 };
 
 const renderRoute = (
@@ -50,11 +49,22 @@ const renderRoute = (
   handleAuthSuccess: (session: AuthSession) => void,
   handleSignOut: () => void
 ) => {
+  const isSignedIn = Boolean(authSession?.user?.email);
+
+  // If signed out, redirect to Auth for restricted pages
+  if (!isSignedIn && (route === '/posts' || route === '/profile' || route === '/settings')) {
+    return (
+      <Auth
+        authSession={authSession}
+        onAuthSuccess={handleAuthSuccess}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
+
   switch (route) {
-    case '/chat':
-      return <Chat />;
     case '/posts':
-      return <Posts />;
+      return <Posts authSession={authSession} />;
     case '/profile':
       return <Profile authSession={authSession} />;
     case '/auth':
@@ -111,12 +121,7 @@ function App() {
         authSession={authSession}
         onSignOut={handleSignOut}
       />
-      {renderRoute(
-        currentRoute,
-        authSession,
-        handleAuthSuccess,
-        handleSignOut
-      )}
+      {renderRoute(currentRoute, authSession, handleAuthSuccess, handleSignOut)}
     </div>
   );
 }

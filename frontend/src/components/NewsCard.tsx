@@ -7,6 +7,7 @@ export interface NewsCardProps {
   source: string;
   timeAgo: string;
   articleUrl: string;
+  articleId?: string;
   imageUrl?: string;
   onCreatePost?: () => void;
 }
@@ -35,10 +36,14 @@ const NewsCard: React.FC<NewsCardProps> = ({
 
   return (
     <div className="h-full w-full flex flex-col">
-      {/* Top half — Image or placeholder */}
+      {/* Top half - image or placeholder */}
       <div className="relative h-1/2 w-full flex-shrink-0 bg-gray-200 flex items-center justify-center overflow-hidden">
         {imageUrl ? (
-          <img src={imageUrl} alt={headline} className="w-full h-full object-cover" />
+          <img
+            src={imageUrl}
+            alt={headline}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="w-32 h-32 rounded-full border-[16px] border-gray-400 bg-gray-200" />
         )}
@@ -49,7 +54,7 @@ const NewsCard: React.FC<NewsCardProps> = ({
         </span>
       </div>
 
-      {/* Bottom half — Content */}
+      {/* Bottom half - content */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 md:px-16 py-6 bg-white">
         <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 leading-tight">
           {headline}
