@@ -2,15 +2,19 @@
 Sprint 4 focus is **Feature Completion + System Refinement**.
 
 ### Planned Sprint 4 items (Feature Completion + System Refinement)
+
 - Frontend: Replacing placeholders in Profile and Settings pages with real data
 - Frontend: Improving UI/UX consistency across Home, Posts, Profile, and Settings
-- Frontend + Backend Integration: Connecting posts, and news flows end-to-end
-- Backend: Completing implementation of all core internal modules (articles, headlines, posts, social, summaries)
+- Frontend + Backend Integration: Connecting posts, feed, social interactions, and news flows end-to-end
+- Backend: Completing implementation of all core internal modules, including articles, headlines, posts, social, summaries, and authentication
+- Backend: Implementing social API endpoints for posts, feed, following/unfollowing, likes/unlikes, and comments
+- Backend + Database: Integrating the backend with Supabase PostgreSQL for persistent cloud storage
+- Backend + Database: Connecting posts, articles, follows, likes, and comments to database-backed repositories
 - Backend: Optimizing repository layer and database interactions
 - Backend: Strengthening error handling and request validation
 - Backend: Finalizing API endpoints and ensuring consistency with frontend expectations
-- Backend: Enhancing middleware (authentication, logging, rate limiting)
-- Testing: Expanding unit tests for backend modules and Cypress tests for frontend workflows
+- Backend: Enhancing middleware, including authentication, logging, and rate limiting
+- Testing: Expanding unit tests for backend modules, including `social_handlers_test.go`, and Cypress tests for frontend workflows
 - Documentation: Finalizing API documentation and overall project README
 
 ---
