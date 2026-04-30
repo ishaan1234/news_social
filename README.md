@@ -31,7 +31,7 @@ The goal is to create a **context-rich, interactive news experience**.
 ---
 
 ## Project Architecture
-
+```
 news_social/
 │
 ├── .env
@@ -210,6 +210,7 @@ news_social/
             ├── Profile.tsx
             ├── Settings.tsx
             └── PlaceholderPage.tsx
+```
 
 ---
 
