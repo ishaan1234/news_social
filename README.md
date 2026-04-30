@@ -229,7 +229,7 @@ news_social/
 - Firebase Authentication (JWT-based)
 
 ### Database
-- SQL / NoSQL (depending on implementation)
+- Supabase PostgreSQL cloud database
 
 ---
 
@@ -251,19 +251,33 @@ Base URL: [LocalHost](http://localhost:8080)
 
 ### Key Endpoints
 
-#### Auth
-- `POST /auth/signup` → Register user
-- `POST /auth/login` → Login user
+#### Authentication
+- `POST /auth/signup` → Register a new user and send verification email
+- `POST /auth/login` → Log in an existing user
+- `POST /auth/verify-email/resend` → Resend email verification link
 
-#### Articles
-- `GET /articles` → Fetch articles
-- `POST /articles` → Create article
+#### News / Articles
+- `GET /news?q=tesla` → Fetch news articles, generate summaries, and save articles to the database
 
-#### Comments / Discussions
-- `GET /comments/:articleId`
-- `POST /comments`
+#### Posts
+- `POST /posts` → Create a post from an existing saved article
 
-Full API details available in: ```backend/README_API.md'''
+#### Feed
+- `GET /feed?user_email=user@example.com` → Retrieve the user’s own posts plus posts from followed users
+
+#### Following
+- `POST /following` → Follow another user
+- `DELETE /following` → Unfollow another user
+
+#### Likes
+- `POST /post-likes` → Like a post
+- `DELETE /post-likes` → Unlike a post
+
+#### Comments
+- `POST /post-comments` → Add a comment to a post
+- `GET /post-comments?post_id=post-uuid` → Retrieve comments for a post
+
+Full API details are available in: `backend/README_API.md`
 
 
 ---
@@ -286,7 +300,11 @@ go run main.go
 #### 3. Setting up environment variables
 ```bash
 PORT=8080
-FIREBASE_API_KEY=your_key
+NEWSAPI_KEY=your_newsapi_key
+GROQ_API_KEY=your_groq_api_key
+FIREBASE_WEB_API_KEY=your_firebase_web_api_key
+GOOGLE_APPLICATION_CREDENTIALS=path/to/firebase-service-account.json
+DATABASE_URL=your_supabase_postgresql_connection_string
 ```
 
 #### 4. Frontend Setup
