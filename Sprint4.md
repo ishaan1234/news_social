@@ -34,7 +34,11 @@ Sprint 4 focus is **Feature Completion + System Refinement**.
   - Finalized endpoints for:
     - Authentication
     - News retrieval and summarization
-    - Posts and interactions
+    - Post creation
+    - Feed retrieval
+    - Following and unfollowing users
+    - Post likes and unlikes
+    - Post comments and comment retrieval
   - Standardized API responses using utility functions
 
 - **Database & Migrations**
@@ -54,7 +58,11 @@ Sprint 4 focus is **Feature Completion + System Refinement**.
   - Verified workflows:
     - User authentication
     - News retrieval with summaries
-    - Posts and social interactions
+    - Creating posts from saved articles
+    - Feed generation for a user and followed users
+    - Following/unfollowing users
+    - Liking/unliking posts
+    - Creating and viewing comments
 
 ---
 
@@ -83,6 +91,12 @@ Sprint 4 focus is **Feature Completion + System Refinement**.
     - TestResendVerificationEmailHandlerValidation
     - TestRegisterFirebaseEmailPasswordRoutes
     - TestValidationResponsesAreJSON
+  - cmd/api/social_handlers_test.go
+    - Covers create post handler validation and response handling
+    - Covers feed handler query validation and feed response behavior
+    - Covers follow and unfollow handler validation
+    - Covers post like and unlike handler validation
+    - Covers create comment and get comments handler behavior
 - **Backend Modules**
   - internal/server/server_http_test
   - internal/utils/errors_test
@@ -145,52 +159,34 @@ The API relies on Firebase Authentication for user registration and login. All a
 ### 1. POST `/auth/signup`
 
 **Description**:
-This endpoint registers a new user with an email/password combination. It sends a verification email to the user.
+Registers a new user with an email/password combination and sends a verification email.
 
 **Request**:
 - **Content-Type**: `application/json`
-- **Body** (JSON):
+- **Body**:
     ```json
     {
       "email": "user@example.com",
       "password": "securePassword123",
-      "display_name": "John Doe"
+      "username": "ritik",
+      "display_name": "Ritik Raj",
+      "avatar_url": "https://example.com/avatar.png"
     }
     ```
 
 **Response**:
-- **Status**: `200 OK` if successful, `400` or `409` if error occurs.
-- **Body** (JSON):
-    ```json
-    {
-      "success": true,
-      "message": "signup successful; verification email sent",
-      "id_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "refresh_token": "1//0gG7_2oaQeP2S...",
-      "expires_in": "3600",
-      "user": {
-        "uid": "12345",
-        "email": "user@example.com",
-        "display_name": "John Doe",
-        "email_verified": false
-      }
-    }
-    ```
-
-**Errors**:
-- `400 Bad Request`: Invalid request body.
-- `409 Conflict`: User already exists.
+- **Status**: `200 OK` if successful; `400 Bad Request` or `409 Conflict` if an error occurs.
 
 ---
 
 ### 2. POST `/auth/login`
 
 **Description**:
-This endpoint allows users to log in with their email and password. The response will include a Firebase ID token and a refresh token.
+Logs in a user with email and password. The response includes Firebase authentication tokens.
 
 **Request**:
 - **Content-Type**: `application/json`
-- **Body** (JSON):
+- **Body**:
     ```json
     {
       "email": "user@example.com",
@@ -199,39 +195,24 @@ This endpoint allows users to log in with their email and password. The response
     ```
 
 **Response**:
-- **Status**: `200 OK` if successful, `400` if error occurs.
-- **Body** (JSON):
-    ```json
-    {
-      "success": true,
-      "message": "login successful",
-      "id_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "refresh_token": "1//0gG7_2oaQeP2S...",
-      "expires_in": "3600",
-      "user": {
-        "uid": "12345",
-        "email": "user@example.com",
-        "display_name": "John Doe",
-        "email_verified": true
-      }
-    }
-    ```
+- **Status**: `200 OK` if successful.
+- Returns the ID token, refresh token, expiration time, and user details.
 
 **Errors**:
-- `400 Bad Request`: Missing email or password.
-- `404 Not Found`: User not found.
+- `400 Bad Request`: Missing or invalid request data.
 - `401 Unauthorized`: Invalid credentials.
+- `404 Not Found`: User not found.
 
 ---
 
 ### 3. POST `/auth/verify-email/resend`
 
 **Description**:
-This endpoint allows users to request a resend of the verification email if the email was not verified during the signup process.
+Resends the Firebase verification email for a user who has not verified their email yet.
 
 **Request**:
 - **Content-Type**: `application/json`
-- **Body** (JSON):
+- **Body**:
     ```json
     {
       "email": "user@example.com",
@@ -241,67 +222,249 @@ This endpoint allows users to request a resend of the verification email if the 
 
 **Response**:
 - **Status**: `200 OK` if successful.
-- **Body** (JSON):
-    ```json
-    {
-      "success": true,
-      "message": "verification email sent",
-      "user": {
-        "uid": "12345",
-        "email": "user@example.com",
-        "display_name": "John Doe",
-        "email_verified": false
-      }
-    }
-    ```
+- Returns a success message and user verification status.
 
 **Errors**:
 - `400 Bad Request`: Missing email or password.
-- `404 Not Found`: User not found.
 - `401 Unauthorized`: Invalid credentials.
+- `404 Not Found`: User not found.
 
 ---
 
 ### 4. GET `/news`
 
 **Description**:
-This endpoint returns the latest news articles from the NewsAPI based on a search query.
+Fetches news articles for a search query, generates AI summaries, and saves the article records to the `articles` table.
 
 **Request**:
 - **Query Parameters**:
-    - `q` (string, optional): Search query to filter news articles. Default is "tesla".
-    ```http
-    GET /news?q=technology
-    ```
+
+| Parameter | Type   | Required | Description |
+|----------|--------|----------|-------------|
+| `q`      | string | No       | Search keyword used to fetch related news articles. Defaults to `tesla` if omitted. |
+
+**Example Request**:
+```http
+GET /news?q=tesla
+GET /news?q=apple
+```
 
 **Response**:
 - **Status**: `200 OK` if successful.
-- **Body** (JSON):
+- Returns article metadata, source information, article content, and generated summaries.
+
+**Errors**:
+- `500 Internal Server Error`: Failed to fetch data from NewsAPI or summarize article content.
+
+---
+
+### 5. POST `/posts`
+
+**Description**:
+Creates a post for a user using an existing article from the `articles` table.
+
+**Request**:
+- **Content-Type**: `application/json`
+- **Body**:
     ```json
     {
-      "status": "ok",
-      "totalResults": 100,
-      "articles": [
-        {
-          "source": {
-            "id": null,
-            "name": "TechCrunch"
-          },
-          "author": "John Doe",
-          "title": "Breaking Tech News",
-          "description": "This is a description of the article.",
-          "url": "https://techcrunch.com/...",
-          "urlToImage": "https://image.url",
-          "publishedAt": "2023-04-13T08:00:00Z",
-          "content": "Article content...",
-          "summary": "Summary of the article..."
-        }
-      ]
+      "user_email": "user@example.com",
+      "article_id": "article-uuid",
+      "caption": "My thoughts on this article"
     }
     ```
 
+**Notes**:
+- `article_id` must reference an existing article in the `articles` table.
+
+**Response**:
+- **Status**: `200 OK` or `201 Created` if successful, depending on handler implementation.
+- Returns the created post record.
+
 **Errors**:
-- `500 Internal Server Error`: Failed to fetch data from NewsAPI.
+- `400 Bad Request`: Missing user email, article ID, or invalid request body.
+- `500 Internal Server Error`: Failed to create the post.
+
+---
+
+### 6. GET `/feed`
+
+**Description**:
+Returns the personalized feed for a user. The feed includes the user's own posts plus posts from users they follow.
+
+**Request**:
+- **Query Parameters**:
+
+| Parameter    | Type   | Required | Description |
+|-------------|--------|----------|-------------|
+| `user_email` | string | Yes      | Email of the user requesting the feed. |
+
+**Example Request**:
+```http
+GET /feed?user_email=user@example.com
+```
+
+**Response**:
+- **Status**: `200 OK` if successful.
+- Returns feed items with article details, `like_count`, `comment_count`, and `liked_by_me`.
+
+**Errors**:
+- `400 Bad Request`: Missing `user_email`.
+- `500 Internal Server Error`: Failed to load feed data.
+
+---
+
+### 7. POST `/following`
+
+**Description**:
+Allows one user to follow another user.
+
+**Request**:
+- **Content-Type**: `application/json`
+- **Body**:
+    ```json
+    {
+      "follower_email": "user@example.com",
+      "following_email": "other@example.com"
+    }
+    ```
+
+**Response**:
+- **Status**: `200 OK` or `201 Created` if successful.
+- Returns a success message or follow relationship data.
+
+**Errors**:
+- `400 Bad Request`: Missing follower or following email, or user attempted to follow themselves.
+- `500 Internal Server Error`: Failed to create follow relationship.
+
+---
+
+### 8. DELETE `/following`
+
+**Description**:
+Allows one user to unfollow another user.
+
+**Request**:
+- **Content-Type**: `application/json`
+- **Body**:
+    ```json
+    {
+      "follower_email": "user@example.com",
+      "following_email": "other@example.com"
+    }
+    ```
+
+**Response**:
+- **Status**: `200 OK` or `204 No Content` if successful.
+
+**Errors**:
+- `400 Bad Request`: Missing follower or following email.
+- `500 Internal Server Error`: Failed to remove follow relationship.
+
+---
+
+### 9. POST `/post-likes`
+
+**Description**:
+Adds a like to a post for a user.
+
+**Request**:
+- **Content-Type**: `application/json`
+- **Body**:
+    ```json
+    {
+      "user_email": "user@example.com",
+      "post_id": "post-uuid"
+    }
+    ```
+
+**Notes**:
+- `post_id` must reference an existing post in the `posts` table.
+
+**Response**:
+- **Status**: `200 OK` or `201 Created` if successful.
+- Returns a success message or updated like state.
+
+**Errors**:
+- `400 Bad Request`: Missing user email or post ID.
+- `500 Internal Server Error`: Failed to like the post.
+
+---
+
+### 10. DELETE `/post-likes`
+
+**Description**:
+Removes a user's like from a post.
+
+**Request**:
+- **Content-Type**: `application/json`
+- **Body**:
+    ```json
+    {
+      "user_email": "user@example.com",
+      "post_id": "post-uuid"
+    }
+    ```
+
+**Response**:
+- **Status**: `200 OK` or `204 No Content` if successful.
+
+**Errors**:
+- `400 Bad Request`: Missing user email or post ID.
+- `500 Internal Server Error`: Failed to unlike the post.
+
+---
+
+### 11. POST `/post-comments`
+
+**Description**:
+Creates a comment on a post.
+
+**Request**:
+- **Content-Type**: `application/json`
+- **Body**:
+    ```json
+    {
+      "post_id": "post-uuid",
+      "user_email": "user@example.com",
+      "content": "This is my comment"
+    }
+    ```
+
+**Response**:
+- **Status**: `200 OK` or `201 Created` if successful.
+- Returns the created comment.
+
+**Errors**:
+- `400 Bad Request`: Missing post ID, user email, or comment content.
+- `500 Internal Server Error`: Failed to create the comment.
+
+---
+
+### 12. GET `/post-comments`
+
+**Description**:
+Returns all comments for a given post, including user details.
+
+**Request**:
+- **Query Parameters**:
+
+| Parameter | Type   | Required | Description |
+|----------|--------|----------|-------------|
+| `post_id` | string | Yes      | ID of the post whose comments should be returned. |
+
+**Example Request**:
+```http
+GET /post-comments?post_id=post-uuid
+```
+
+**Response**:
+- **Status**: `200 OK` if successful.
+- Returns the list of comments for the post with user details.
+
+**Errors**:
+- `400 Bad Request`: Missing `post_id`.
+- `500 Internal Server Error`: Failed to load comments.
 
 ---
 
@@ -338,6 +501,6 @@ Sends a news article's content to Groq's API for summarization.
 - `NEWSAPI_KEY`: API key for NewsAPI.
 - `FIREBASE_WEB_API_KEY`: Firebase Web API key.
 - `GROQ_API_KEY`: API key for Groq API.
-- 'GOOGLE_APPLICATION_CREDENTIALS': Path to the Firebase service account credentials JSON file.
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to the Firebase service account credentials JSON file.
 
 ---
