@@ -20,55 +20,74 @@ Sprint 4 focus is **Feature Completion + System Refinement**.
 ---
 
 ## 2. Completed successfully
-- **Frontend Enhancements**
-  - Improved UI consistency across all major pages (Home, Posts, Chat, Profile, Settings)
-  - Integrated frontend pages with backend APIs (Posts, Profile, Home)
-  - Reduced reliance on placeholders by incorporating real backend data
 
-- **Backend (Internal Modules Completion)**
-  - Completed implementation of:
-    - Articles module
-    - Headlines module (including aggregation logic)
-    - Posts module (with both in-memory and persistent repositories)
-    - Social module (follow/interactions)
-    - Summaries module (AI-based summarization pipeline)
-  - Maintained clean architecture using handler → service → repository pattern
+### Frontend Enhancements
 
-- **Backend API Stabilization**
-  - Finalized endpoints for:
-    - Authentication
-    - News retrieval and summarization
-    - Post creation
-    - Feed retrieval
-    - Following and unfollowing users
-    - Post likes and unlikes
-    - Post comments and comment retrieval
-  - Standardized API responses using utility functions
+- Improved UI consistency across all major pages: Home, Posts, Chat, Profile, and Settings
+- Integrated frontend pages with backend APIs, including Posts, Profile, and Home
+- Reduced reliance on placeholders by incorporating real backend data
 
-- **Database & Migrations**
-  - Completed schema design and verified migrations for:
-    - Users, Articles, Summaries, Posts, Comments, Votes
-  - Ensured database consistency and integration with repository layer
+### Backend Internal Modules Completion
 
-- **Middleware Improvements**
-  - Enhanced:
-    - Authentication middleware
-    - Logging middleware
-    - Rate limiting
-  - Improved request tracing and debugging
+- Completed implementation of:
+  - Articles module
+  - Headlines module, including aggregation logic
+  - Posts module with both in-memory and persistent repositories
+  - Social module for follows and user interactions
+  - Summaries module for the AI-based summarization pipeline
+- Maintained clean architecture using the handler → service → repository pattern
 
-- **End-to-End Integration**
-  - Fully integrated frontend ↔ API layer ↔ backend/internal modules
-  - Verified workflows:
-    - User authentication
-    - News retrieval with summaries
-    - Creating posts from saved articles
-    - Feed generation for a user and followed users
-    - Following/unfollowing users
-    - Liking/unliking posts
-    - Creating and viewing comments
+### Backend API Stabilization
 
----
+- Finalized endpoints for:
+  - Authentication
+  - News retrieval and summarization
+  - Post creation
+  - Feed retrieval
+  - Following and unfollowing users
+  - Post likes and unlikes
+  - Post comments and comment retrieval
+- Standardized API responses using utility functions
+
+### Supabase PostgreSQL Integration
+
+- Integrated the backend with Supabase PostgreSQL for persistent cloud database storage
+- Configured the backend to use the `DATABASE_URL` environment variable for database connectivity
+- Connected articles, posts, follows, likes, comments, and user-related data to the database-backed repository layer
+- Verified that social features persist data through Supabase instead of relying only on local or in-memory storage
+
+### Database & Migrations
+
+- Completed schema design and verified migrations for:
+  - Users
+  - Articles
+  - Summaries
+  - Posts
+  - Comments
+  - Votes
+  - Follows
+  - Post likes
+- Ensured database consistency and integration with the repository layer
+
+### Middleware Improvements
+
+- Enhanced:
+  - Authentication middleware
+  - Logging middleware
+  - Rate limiting
+- Improved request tracing and debugging
+
+### End-to-End Integration
+
+- Fully integrated the frontend ↔ API layer ↔ backend/internal modules
+- Verified workflows for:
+  - User authentication
+  - News retrieval with summaries
+  - Creating posts from saved articles
+  - Feed generation for a user and followed users
+  - Following and unfollowing users
+  - Liking and unliking posts
+  - Creating and viewing comments---
 
 ## 3. List of Unit Tests & Cypress Tests for frontend
 - Cypress component tests:
