@@ -525,5 +525,6 @@ Sends a news article's content to Groq's API for summarization.
 - `FIREBASE_WEB_API_KEY`: Firebase Web API key.
 - `GROQ_API_KEY`: API key for Groq API.
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to the Firebase service account credentials JSON file.
+- `DATABASE_URL`: Supabase PostgreSQL connection string used by the backend for persistent database storage.
 
 ---
